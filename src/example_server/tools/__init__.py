@@ -19,4 +19,5 @@ def register_tools(mcp) -> None:
     example_tool.register(mcp)
     pdf_search.register(mcp)
 
+
 __all__ = ["register_tools"]

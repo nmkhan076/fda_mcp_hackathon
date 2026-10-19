@@ -1,4 +1,5 @@
 from fastmcp import FastMCP
+
 from example_server.rag.fda_rag import search_fda_source
 
 
