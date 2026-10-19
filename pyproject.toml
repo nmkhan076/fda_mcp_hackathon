@@ -5,10 +5,14 @@ description = "Starter MCP server for the GSA MCP hackathon"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "beautifulsoup4>=4.15.0",
     "fastmcp>=2.0.0",
     "httpx>=0.27.0",
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
+    "pymupdf>=2.0",
+    "requests>=2.34.2",
+    "scikit-learn>=1.9.1",
 ]
 
 [project.scripts]
