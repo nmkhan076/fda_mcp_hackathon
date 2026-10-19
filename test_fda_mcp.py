@@ -11,9 +11,18 @@ async def main():
         print("Available tools:")
         for tool in tools:
             print("-", tool.name)
-
         # Call the FDA PDF search tool
-        result = await client.call_tool(
+        drug_search_result = await client.call_tool(
+            "get_drug_label",
+            {
+                "drug_name": "Oxycodone",
+            },
+        )
+
+        print("\nOPenFDA search result:")
+        print(drug_search_result)
+        # Call the FDA PDF search tool
+        pdf_search_result = await client.call_tool(
             "search_opioid_label_updates",
             {
                 "query": "respiratory depression",
@@ -22,7 +31,7 @@ async def main():
         )
 
         print("\nFDA search result:")
-        print(result)
+        print(pdf_search_result)
 
 
 if __name__ == "__main__":
