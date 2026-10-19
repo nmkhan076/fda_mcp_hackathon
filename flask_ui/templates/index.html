@@ -1,0 +1,225 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>OpenFDA MCP Explorer</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+          rel="stylesheet">
+</head>
+
+<body class="bg-light">
+<div class="container py-4">
+
+    <h2>OpenFDA Drug Explorer</h2>
+    <p class="text-muted">
+        Flask interface connected to Databricks MCP
+    </p>
+
+    <div class="card shadow-sm p-4 mb-4">
+        <form method="POST"><input type="hidden" name="search_type" value="drug">
+            <label class="form-label">
+                Enter drug brand name
+            </label>
+
+            <input type="text"
+                   name="drug_name"
+                   class="form-control mb-3"
+                   value="{{ drug_name }}"
+                   placeholder="OxyContin">
+
+            <button class="btn btn-primary">
+                Search Drug
+            </button>
+        </form>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger">
+        {{ error }}
+    </div>
+    {% endif %}
+
+
+{% if drug_data %}
+
+    {% if drug_data.get("success") %}
+
+    <div class="card shadow-sm p-4 mb-4">
+
+        <h4>FDA Drug Label</h4>
+
+        <p>
+            <strong>Brand:</strong>
+            {{ drug_data.get("brand_name", []) | join(", ") }}
+        </p>
+
+        <p>
+            <strong>Generic Name:</strong>
+            {{ drug_data.get("generic_name", []) | join(", ") }}
+        </p>
+
+        <h5>Boxed Warning</h5>
+        {% for warning in drug_data.get("boxed_warning", []) %}
+            <p>{{ warning }}</p>
+        {% else %}
+            <p>No boxed warning field available.</p>
+        {% endfor %}
+
+        <h5>Adverse Reactions</h5>
+        {% for reaction in drug_data.get("adverse_reactions", []) %}
+            <p>{{ reaction }}</p>
+        {% else %}
+            <p>No adverse reactions field available.</p>
+        {% endfor %}
+
+    </div>
+
+    {% else %}
+
+    <div class="alert alert-warning">
+        {{ drug_data.get("error", "Unknown error") }}
+    </div>
+
+    {% endif %}
+
+{% endif %}
+
+
+    <!-- FDA RAG Evidence Search -->
+    <div class="card shadow-sm p-4 mt-4 mb-4">
+
+        <h4>FDA Opioid Safety Evidence Search</h4>
+
+        <p class="text-muted">
+            Search FDA opioid safety documents using
+            the MCP retrieval tools.
+        </p>
+
+        <form method="POST">
+
+            <input
+                type="hidden"
+                name="search_type"
+                value="rag"
+            >
+
+            <div class="mb-3">
+                <label class="form-label">
+                    Enter your question
+                </label>
+
+                <textarea
+                    name="query"
+                    class="form-control"
+                    rows="3"
+                    placeholder="What does FDA say about respiratory depression?"
+                    required
+                >{{ query }}</textarea>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">
+                    Select FDA Source
+                </label>
+
+                <select
+                    name="source"
+                    class="form-select"
+                >
+                    <option value="pdf"
+                        {% if source == "pdf" %}selected{% endif %}>
+                        FDA Opioid Label Updates (PDF)
+                    </option>
+
+                    <option value="web"
+                        {% if source == "web" %}selected{% endif %}>
+                        FDA Opioid Medications (Webpage)
+                    </option>
+                </select>
+            </div>
+
+            <button
+                type="submit"
+                class="btn btn-success"
+            >
+                Search FDA Evidence
+            </button>
+
+        </form>
+    </div>
+
+    <!-- FDA RAG Results -->
+    {% if rag_data %}
+
+    <div class="card shadow-sm p-4 mt-4">
+
+        <h4 class="mb-3">
+            Retrieved FDA Evidence
+        </h4>
+
+        <p>
+            <strong>Question:</strong>
+            {{ rag_data.get("query", "") }}
+        </p>
+
+        {% for match in rag_data.get("matches", []) %}
+
+        <div class="card mb-3">
+
+            <div class="card-header bg-light">
+
+                <strong>
+                    {{ match.get("title", "FDA Source") }}
+                </strong>
+
+                {% if match.get("page") %}
+                    <span class="badge bg-secondary ms-2">
+                        Page {{ match.get("page") }}
+                    </span>
+                {% endif %}
+
+                <span class="badge bg-primary ms-2">
+                    Relevance:
+                    {{ "%.3f"|format(match.get("score", 0)) }}
+                </span>
+
+            </div>
+
+            <div class="card-body">
+
+                <p style="white-space: pre-wrap;">
+                    {{ match.get("text", "") }}
+                </p>
+
+                <a
+                    href="{{ match.get('source', '#') }}"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="btn btn-outline-primary btn-sm"
+                >
+                    View FDA Source
+                </a>
+
+            </div>
+        </div>
+
+        {% else %}
+
+        <p class="text-muted">
+            No relevant FDA passages found.
+        </p>
+
+        {% endfor %}
+
+    </div>
+    {% endif %}
+</div>
+
+
+
+
+
+</body>
+</html>
