@@ -42,50 +42,230 @@
     {% endif %}
 
 
-{% if drug_data %}
 
-    {% if drug_data.get("success") %}
+{% if drug_data and drug_data.get("success") %}
 
+<div class="card shadow-sm p-4 mb-4">
+    <h4>FDA Drug Label Information</h4>
+
+    <div class="table-responsive">
+        <table class="table table-bordered table-striped">
+            <thead class="table-dark">
+                <tr>
+                    <th style="width: 30%;">Field</th>
+                    <th>Information</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <th>Brand Name</th>
+                    <td>{{ drug_data.get("brand_name", []) | join(", ") }}</td>
+                </tr>
+                <tr>
+                    <th>Generic Name</th>
+                    <td>{{ drug_data.get("generic_name", []) | join(", ") }}</td>
+                </tr>
+                <tr>
+                    <th>Manufacturer</th>
+                    <td>{{ drug_data.get("manufacturer", []) | join(", ") }}</td>
+                </tr>
+                <tr>
+                    <th>Set ID</th>
+                    <td>{{ drug_data.get("set_id") or "N/A" }}</td>
+                </tr>
+                <tr>
+                    <th>Effective Date</th>
+                    <td>{{ drug_data.get("effective_time") or "N/A" }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h5 class="mt-3">Boxed Warnings</h5>
+    <details class="border rounded p-3 mb-3">
+        <summary>View Boxed Warnings</summary>
+        {% for warning in drug_data.get("boxed_warning", []) %}
+            <p class="mt-3" style="white-space: pre-wrap;">{{ warning }}</p>
+        {% else %}
+            <p>No boxed warning available.</p>
+        {% endfor %}
+    </details>
+
+    <h5>Adverse Reactions</h5>
+    <details class="border rounded p-3">
+        <summary>View Adverse Reactions</summary>
+        {% for reaction in drug_data.get("adverse_reactions", []) %}
+            <p class="mt-3" style="white-space: pre-wrap;">{{ reaction }}</p>
+        {% else %}
+            <p>No adverse reactions available.</p>
+        {% endfor %}
+    </details>
+</div>
+{% endif %}
     <div class="card shadow-sm p-4 mb-4">
 
-        <h4>FDA Drug Label</h4>
+    <h4>Historical CYP Label Timeline</h4>
 
-        <p>
-            <strong>Brand:</strong>
-            {{ drug_data.get("brand_name", []) | join(", ") }}
-        </p>
+    <p class="text-muted">
+        Retrieve historical FDA drug labels and
+        identify CYP enzyme references.
+    </p>
 
-        <p>
-            <strong>Generic Name:</strong>
-            {{ drug_data.get("generic_name", []) | join(", ") }}
-        </p>
+    <form method="POST">
 
-        <h5>Boxed Warning</h5>
-        {% for warning in drug_data.get("boxed_warning", []) %}
-            <p>{{ warning }}</p>
-        {% else %}
-            <p>No boxed warning field available.</p>
-        {% endfor %}
+        <input
+            type="hidden"
+            name="search_type"
+            value="cyp"
+        >
 
-        <h5>Adverse Reactions</h5>
-        {% for reaction in drug_data.get("adverse_reactions", []) %}
-            <p>{{ reaction }}</p>
-        {% else %}
-            <p>No adverse reactions field available.</p>
-        {% endfor %}
+        <div class="mb-3">
+            <label class="form-label">
+                Drug Brand Name
+            </label>
 
+            <input
+                type="text"
+                name="cyp_drug"
+                class="form-control"
+                value="{{ cyp_drug }}"
+                placeholder="OxyContin"
+                required
+            >
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">
+                Target CYP Enzymes
+            </label>
+
+            <input
+                type="text"
+                name="cyp_enzymes"
+                class="form-control"
+                value="{{ cyp_enzymes }}"
+                placeholder="CYP2D6, CYP3A4"
+                required
+            >
+        </div>
+
+        <button type="submit" class="btn btn-primary">
+            Retrieve CYP Timeline
+        </button>
+
+    </form>
+</div>
+
+{% if cyp_data and cyp_data.get("success") %}
+
+<div class="card shadow-sm p-4 mb-4">
+
+    <h4>Historical CYP Label Timeline: {{ cyp_data.drug_name }}</h4>
+
+    <p>
+        <strong>Set ID:</strong> {{ cyp_data.set_id }}
+        <span class="ms-3">
+            <strong>Total Revisions:</strong>
+            {{ cyp_data.total_revisions }}
+        </span>
+    </p>
+
+    <div class="table-responsive">
+        <table class="table table-bordered table-hover align-middle">
+            <thead class="table-dark">
+                <tr>
+                    <th>Revision</th>
+                    <th>Effective Date</th>
+                    <th>Version</th>
+                    <th>CYP Enzymes</th>
+                    <th>FDA Sections</th>
+                    <th>Label Details</th>
+                </tr>
+            </thead>
+
+            <tbody>
+            {% for revision in cyp_data.revisions %}
+
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td>{{ revision.date_readable }}</td>
+                    <td>{{ revision.version }}</td>
+
+                    <td>
+                        {% for section in revision.sections %}
+                            {% for enzyme in section.enzymes %}
+                                <span class="badge bg-info text-dark mb-1">
+                                    {{ enzyme }}
+                                </span>
+                            {% endfor %}
+                        {% else %}
+                            <span class="text-muted">No matches</span>
+                        {% endfor %}
+                    </td>
+
+                    <td>
+                        {% for section in revision.sections %}
+                            <div>{{ section.title }}</div>
+                        {% else %}
+                            <span class="text-muted">
+                                No matching sections
+                            </span>
+                        {% endfor %}
+                    </td>
+
+                    <td>
+                        {% if revision.sections %}
+                        <details>
+                            <summary class="text-primary">
+                                View Evidence
+                            </summary>
+
+                            {% for section in revision.sections %}
+                            <div class="mt-3">
+                                <strong>{{ section.title }}</strong>
+                                <p style="white-space: pre-wrap;">
+                                    {{ section.text }}
+                                </p>
+                            </div>
+                            {% endfor %}
+                        </details>
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+                </tr>
+
+            {% else %}
+                <tr>
+                    <td colspan="6" class="text-center">
+                        No historical revisions returned.
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
     </div>
 
-    {% else %}
+    <p class="text-muted small">
+        Revisions are retrieved from openFDA.
+        Historical labeling coverage may be incomplete.
+        CYP mentions do not necessarily indicate labeling changes.
+    </p>
 
-    <div class="alert alert-warning">
-        {{ drug_data.get("error", "Unknown error") }}
-    </div>
+    <details class="mt-3">
+        <summary class="text-primary">
+            View Complete Markdown Report
+        </summary>
 
-    {% endif %}
+        <pre class="bg-light p-3 mt-3"
+             style="white-space: pre-wrap;
+                    max-height: 500px;
+                    overflow: auto;">{{ cyp_data.markdown }}</pre>
+    </details>
+
+</div>
 
 {% endif %}
-
 
     <!-- FDA RAG Evidence Search -->
     <div class="card shadow-sm p-4 mt-4 mb-4">

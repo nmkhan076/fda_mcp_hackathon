@@ -91,13 +91,50 @@ async def search_fda_evidence(query, source, top_k=3):
 
             return data
 
+async def fetch_cyp_history(drug_name, enzymes):
+    async with streamable_http_client(MCP_URL) as (
+        read_stream,
+        write_stream,
+    ):
+        async with ClientSession(
+            read_stream, write_stream
+        ) as session:
 
+            await session.initialize()
+
+            result = await session.call_tool(
+                "get_drug_cyp_label_history",
+                {
+                    "drug_name": drug_name,
+                    "cyp_targets": enzymes,
+                },
+            )
+
+            if result.is_error:
+                raise RuntimeError(str(result.content))
+
+            if result.structured_content is not None:
+                data = result.structured_content
+            else:
+                blocks = [
+                    block.text
+                    for block in result.content
+                    if block.type == "text"
+                ]
+                data = json.loads(blocks[0]) if blocks else {}
+
+            if not isinstance(data, dict):
+                raise ValueError("Unexpected MCP response")
+
+            return data
 @app.route("/", methods=["GET", "POST"])
 def home():
     drug_data = None
     rag_data = None
     error = None
-
+    cyp_data = None
+    cyp_drug = "OxyContin"
+    cyp_enzymes = "CYP2D6, CYP3A4"
     drug_name = ""
     query = ""
     source = "pdf"
@@ -137,7 +174,40 @@ def home():
                 except Exception:
                     traceback.print_exc()
                     error = "Unable to retrieve FDA evidence."
+        elif search_type == "cyp":
 
+            cyp_drug = request.form.get(
+                "cyp_drug", ""
+            ).strip()
+
+            cyp_enzymes = request.form.get(
+                "cyp_enzymes", ""
+            ).strip()
+
+            enzymes = [
+                e.strip()
+                for e in cyp_enzymes.split(",")
+                if e.strip()
+            ]
+
+            if not cyp_drug or not enzymes:
+                error = "Enter a drug name and CYP enzymes."
+
+            else:
+                try:
+                    cyp_data = asyncio.run(
+                        fetch_cyp_history(cyp_drug, enzymes)
+                    )
+
+                    if not cyp_data.get("success"):
+                        error = cyp_data.get(
+                            "error", "Unable to retrieve CYP history."
+                        )
+                        cyp_data = None
+
+                except Exception:
+                    traceback.print_exc()
+                    error = "CYP history retrieval failed."
     return render_template(
         "index.html",
         drug_data=drug_data,
@@ -146,6 +216,9 @@ def home():
         query=query,
         source=source,
         error=error,
+        cyp_data=cyp_data,
+        cyp_drug=cyp_drug,
+        cyp_enzymes=cyp_enzymes,
     )
 
 

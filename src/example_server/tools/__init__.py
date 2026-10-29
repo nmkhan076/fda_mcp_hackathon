@@ -11,14 +11,15 @@ To add a tool:
 
 from __future__ import annotations
 
-from example_server.tools import drug_label, example_tool, pdf_search
+from example_server.tools import drug_label, drug_label_history, pdf_search#example_tool
 
 
 def register_tools(mcp) -> None:
     """Register all tools with the MCP server."""
-    example_tool.register(mcp)
+    #example_tool.register(mcp)
     pdf_search.register(mcp)
     drug_label.register(mcp)
+    drug_label_history.register(mcp)
 
 
 __all__ = ["register_tools"]
