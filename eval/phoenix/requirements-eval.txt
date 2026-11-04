@@ -1,0 +1,6 @@
+openai>=1.60,<3
+fastmcp>=2,<4
+# Optional Phoenix tracing / dataset upload:
+# arize-phoenix>=11
+# arize-phoenix-otel>=0.10
+# openinference-instrumentation-openai>=0.1

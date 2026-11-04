@@ -1,0 +1,4 @@
+datasets:
+  fda-eval-v01:
+    file: golden_fda_eval.csv
+    description: FDA labeling, CYP history, source retrieval, scope, and injection evaluation
