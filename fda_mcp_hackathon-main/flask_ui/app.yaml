@@ -1,0 +1,13 @@
+command:
+  - gunicorn
+  - app:app
+  - --bind
+  - 0.0.0.0:${DATABRICKS_APP_PORT}
+  - --workers
+  - "2"
+  - --timeout
+  - "120"
+
+env:
+  - name: MCP_URL
+    value: "https://opioid-mcp-7474643950332700.aws.databricksapps.com/mcp/"

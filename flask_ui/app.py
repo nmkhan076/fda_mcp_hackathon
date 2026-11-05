@@ -3,7 +3,6 @@ import json
 import os
 import traceback
 
-from flask import Flask, render_template, request, jsonify, send_from_directory
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
@@ -133,7 +132,6 @@ def home():
     rag_data = None
     error = None
     cyp_data = None
-    cyp_drug = "Oxycodone"
     cyp_enzymes = "CYP2D6, CYP3A4"
     drug_name = ""
     query = ""
@@ -181,7 +179,6 @@ def home():
             ).strip()
 
             cyp_enzymes = request.form.get(
-                "cyp_enzymes", "CYP2D6, CYP3A4"
             ).strip()
 
             enzymes = [
@@ -220,70 +217,6 @@ def home():
         cyp_drug=cyp_drug,
         cyp_enzymes=cyp_enzymes,
     )
-
-async def fetch_cyp_details(record_id, enzymes):
-    async with streamable_http_client(MCP_URL) as (
-        read_stream,
-        write_stream,
-    ):
-        async with ClientSession(
-            read_stream,
-            write_stream,
-        ) as session:
-            await session.initialize()
-
-            result = await session.call_tool(
-                "get_drug_cyp_label_details",
-                {
-                    "record_id": record_id,
-                    "cyp_targets": enzymes,
-                },
-            )
-
-            if result.is_error:
-                raise RuntimeError(str(result.content))
-
-            data = result.structured_content
-
-            if data is None:
-                blocks = [
-                    block.text
-                    for block in result.content
-                    if block.type == "text"
-                ]
-
-                if not blocks:
-                    raise ValueError("Empty MCP response.")
-
-                data = json.loads(blocks[0])
-
-            if isinstance(data, dict) and "result" in data:
-                data = data["result"]
-
-            return data
-
-
-@app.post("/api/cyp-label-details")
-def cyp_label_details_api():
-    payload = request.get_json(silent=True) or {}
-
-    record_id = payload.get("record_id", "")
-    enzymes = payload.get("enzymes", [])
-
-    if not isinstance(enzymes, list):
-        return jsonify({"error": "Invalid enzyme list."}), 400
-
-    try:
-        result = asyncio.run(
-            fetch_cyp_details(record_id, enzymes)
-        )
-    except Exception:
-        app.logger.exception("CYP details retrieval failed")
-        return jsonify({
-            "error": "Unable to retrieve CYP label details."
-        }), 502
-
-    return jsonify(result), (200 if result.get("success") else 400)
 
 
 if __name__ == "__main__":
