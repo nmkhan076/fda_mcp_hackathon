@@ -10,8 +10,8 @@ To add a tool:
 """
 
 from __future__ import annotations
-
 from example_server.tools import drug_label, drug_label_history, cyp_label_details, pdf_search#example_tool
+
 
 
 def register_tools(mcp) -> None:

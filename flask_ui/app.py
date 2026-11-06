@@ -2,7 +2,6 @@ import asyncio
 import json
 import os
 import traceback
-
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
@@ -16,7 +15,6 @@ port = os.environ.get("DATABRICKS_APP_PORT", "8000")
 MCP_URL = os.getenv("MCP_URL", "http://127.0.0.1:8000/mcp")
 
 print("Flask MCP URL:", MCP_URL, flush=True)
-
 
 async def fetch_drug(drug_name):
     async with streamable_http_client(MCP_URL) as (read_stream, write_stream):

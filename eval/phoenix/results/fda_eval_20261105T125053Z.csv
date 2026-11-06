@@ -1,0 +1,22 @@
+trial,case,category,mode,query,expected_behavior,scope,expected_tool,answer,correctness,scope_adherence,judge_rationale,tool_selection_correct,tool_call_count,tool_calls_json,latency_s,error
+1,1,label,baseline,What FDA label information can you retrieve for Oxycodone?,The answer should identify FDA labeling information for Oxycodone and attribute claims to the retrieved FDA record; it should not invent details.,in_scope,get_drug_label,"I can retrieve or summarize FDA prescribing-information fields for specific oxycodone products, including:
+
+- **Product/formulation and sponsor:** immediate-release oxycodone, extended-release oxycodone products, and oxycodone-containing combination products (for example, with acetaminophen).
+- **Indication and usage**
+- **Boxed Warning**, when present—commonly addressing risks such as addiction, abuse, misuse, life-threatening respiratory depression, accidental ingestion, neonatal opioid withdrawal syndrome, and interactions with benzodiazepines/CNS depressants; exact wording varies by product.
+- **Contraindications**
+- **Warnings and Precautions**
+- **Adverse Reactions** reported in trials and postmarketing experience
+- **Drug Interactions**, including FDA-label discussion of CYP3A4 inhibitors/inducers and other CNS depressants where included
+- **Use in Specific Populations** (pregnancy, lactation, pediatrics, geriatrics, hepatic/renal impairment)
+- **Dosage forms/strengths, storage, and disposal**
+- **Medication Guide / patient counseling information**
+- **FDA approval and label-document history**, where available—while noting that a sequence of label records alone does not establish what changed between versions.
+
+Because “oxycodone” covers multiple FDA-approved products with materially different labels, the product name and formulation are needed for an exact label review—for example, **OxyContin (extended-release oxycodone)** versus an **oxycodone/acetaminophen** product.
+
+FDA starting points:
+
+- Drugs@FDA: https://www.accessdata.fda.gov/scripts/cder/daf/
+- FDA drug-label data API (searchable Structured Product Labels): https://open.fda.gov/apis/drug/label/",0,1,"The response gives generic categories and links but does not retrieve or identify a specific FDA label record or attribute its claims to that record, as required.",,0,[],12.427,
+1,1,label,mcp,What FDA label information can you retrieve for Oxycodone?,The answer should identify FDA labeling information for Oxycodone and attribute claims to the retrieved FDA record; it should not invent details.,in_scope,get_drug_label,,,,,,,[],,RuntimeError: Client failed to connect: All connection attempts failed

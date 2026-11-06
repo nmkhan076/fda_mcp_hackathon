@@ -1,0 +1,31 @@
+{
+  "dataset": "fda-eval-v01",
+  "prompt_version": "v01",
+  "model": "models.ai.gpt-5-6-terra",
+  "judge_model": "models.ai.gpt-5-6-terra",
+  "repeats": 1,
+  "results_file": "C:\\Users\\Naima.Khan\\ANaima\\Hackathon\\fda_mcp_hackathon-updated\\eval\\phoenix\\results\\fda_eval_20261105T125053Z.csv",
+  "modes": {
+    "baseline": {
+      "total": 1,
+      "scored": 1,
+      "errors_or_unscored": 0,
+      "correctness_rate": 0.0,
+      "scope_adherence_rate": 1.0,
+      "mean_latency_s": 12.427,
+      "mean_tool_calls": 0,
+      "tool_selection_rate": null
+    },
+    "mcp": {
+      "total": 1,
+      "scored": 0,
+      "errors_or_unscored": 1,
+      "correctness_rate": null,
+      "scope_adherence_rate": null,
+      "mean_latency_s": null,
+      "mean_tool_calls": null,
+      "tool_selection_rate": null
+    }
+  },
+  "correctness_lift_percentage_points": null
+}
