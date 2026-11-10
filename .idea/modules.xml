@@ -2,7 +2,8 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/fda_mcp_hackathon-main.iml" filepath="$PROJECT_DIR$/.idea/fda_mcp_hackathon-main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/example-server.iml" filepath="$PROJECT_DIR$/.idea/example-server.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/example-server@1.iml" filepath="$PROJECT_DIR$/.idea/example-server@1.iml" />
     </modules>
   </component>
 </project>
