@@ -2,6 +2,9 @@ import asyncio
 import json
 import os
 import traceback
+import time
+from threading import Lock
+from datetime import timedelta
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
@@ -125,6 +128,64 @@ async def fetch_cyp_history(drug_name, enzymes):
                 raise ValueError("Unexpected MCP response")
 
             return data
+_latest_cache = {"expires": 0, "labels": []}
+_latest_lock = Lock()
+
+FOUR_DRUGS = ("Oxycodone", "Hydrocodone", "Tramadol", "Buprenorphine")
+
+
+def normalize_latest_labels(data):
+    """Accept both plain and FastMCP wrapped structured results."""
+    for _ in range(3):
+        if isinstance(data, dict) and isinstance(data.get("labels"), list):
+            break
+        if isinstance(data, dict) and isinstance(data.get("result"), dict):
+            data = data["result"]
+        elif isinstance(data, dict) and isinstance(data.get("structuredContent"), dict):
+            data = data["structuredContent"]
+        else:
+            break
+    labels = data.get("labels", []) if isinstance(data, dict) else []
+    by_drug = {str(r.get("drug_name", "")).casefold(): r for r in labels if isinstance(r, dict)}
+    return [by_drug.get(name.casefold(), {
+        "drug_name": name, "error": "No record returned by MCP server"
+    }) for name in FOUR_DRUGS]
+
+
+async def fetch_latest_labels():
+    async with streamable_http_client(
+        MCP_URL
+    ) as (read_stream, write_stream):
+        async with ClientSession(read_stream, write_stream) as session:
+            await session.initialize()
+            result = await session.call_tool(
+                "get_latest_four_opioid_labels", {},
+                read_timeout_seconds=210,
+            )
+            if result.is_error:
+                raise RuntimeError(str(result.content))
+            data = result.structured_content
+            if data is None:
+                blocks = [b.text for b in result.content if b.type == "text"]
+                data = json.loads(blocks[0]) if blocks else {}
+            return normalize_latest_labels(data)
+
+
+def cached_latest_labels():
+    with _latest_lock:
+        if time.monotonic() >= _latest_cache["expires"]:
+            try:
+                _latest_cache["labels"] = asyncio.run(fetch_latest_labels())
+                _latest_cache["expires"] = time.monotonic() + 900
+            except Exception as exc:
+                app.logger.exception("Latest four labels retrieval failed")
+                _latest_cache["labels"] = [
+                    {"drug_name": name, "error": f"Retrieval failed: {type(exc).__name__}: {exc}"}
+                    for name in FOUR_DRUGS
+                ]
+                _latest_cache["expires"] = time.monotonic() + 60
+        return _latest_cache["labels"]
+
 @app.route("/", methods=["GET", "POST"])
 def home():
     drug_data = None
@@ -217,6 +278,7 @@ def home():
         cyp_data=cyp_data,
         cyp_drug=cyp_drug,
         cyp_enzymes=cyp_enzymes,
+        latest_labels=cached_latest_labels(),
     )
 
 async def fetch_cyp_details(record_id, enzymes):

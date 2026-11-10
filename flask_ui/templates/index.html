@@ -99,213 +99,42 @@
                             </tbody>
                         </table>
                     </div>
-                    <h5 class="mt-3">
-                        Boxed Warnings
-                    </h5>
-                    <details class="border rounded p-3 mb-3">
-                        <summary>
-                            View Boxed Warnings
-                        </summary>
-                        {% for warning in ([drug_data.get("boxed_warning")] if drug_data.get("boxed_warning") is string else (drug_data.get("boxed_warning") or [])) %}
-                            <p class="mt-3" style="white-space: pre-wrap;">
-                                {{ warning }}
-                            </p>
-                        {% else %}
-                            <p>
-                                No boxed warning available.
-                            </p>
-                        {% endfor %}
-                    </details>
-                    <h5>
-                        Adverse Reactions
-                    </h5>
-                    <details class="border rounded p-3">
-                        <summary>
-                            View Adverse Reactions
-                        </summary>
-                        {% for reaction in ([drug_data.get("adverse_reactions")] if drug_data.get("adverse_reactions") is string else (drug_data.get("adverse_reactions") or [])) %}
-                            <p class="mt-3" style="white-space: pre-wrap;">
-                                {{ reaction }}
-                            </p>
-                        {% else %}
-                            <p>
-                                No adverse reactions available.
-                            </p>
-                        {% endfor %}
+                    <h5 class="mt-3">Boxed Warnings — LLM Structured Points</h5>
+                    {% if drug_data.get('llm_status') == 'success' and drug_data.get('structured_warnings') %}
+                        <ul>{% for point in drug_data.structured_warnings.get('boxed_warning_points', []) %}<li>{{ point }}</li>{% else %}<li>No boxed warning in retrieved label.</li>{% endfor %}</ul>
+                        <h5>Other Warnings — LLM Structured Points</h5>
+                        <ul>{% for point in drug_data.structured_warnings.get('warning_points', []) %}<li>{{ point }}</li>{% else %}<li>No additional warnings in retrieved label.</li>{% endfor %}</ul>
+                        <h5>Adverse Reactions — LLM Structured Points</h5>
+                        <ul>{% for point in drug_data.structured_warnings.get('adverse_reaction_points', []) %}<li>{{ point }}</li>{% else %}<li>No adverse reactions in retrieved label.</li>{% endfor %}</ul>
+                    {% else %}
+                        <div class="alert alert-warning">LLM summary unavailable: {{ drug_data.get('llm_error', 'No LLM response') }}</div>
+                    {% endif %}
+                    <details class="mt-3"><summary>View original openFDA warning and adverse-reaction text</summary>
+                    {% for key in ['boxed_warning', 'warnings', 'adverse_reactions'] %}<h6 class="mt-3">{{ key.replace('_',' ').title() }}</h6>
+                    {% for item in drug_data.get(key, []) %}<p style="white-space:pre-wrap">{{ item }}</p>{% else %}<p>Not provided.</p>{% endfor %}{% endfor %}
                     </details>
                 </div>
             {% endif %}
             <div class="card shadow-sm p-4 mb-4">
-                <h4>
-                    Historical CYP Label Timeline
-                </h4>
-                <p class="text-muted">
-                    Retrieve historical FDA drug labels and
-                    identify CYP enzyme references.
-                </p>
-                <form method="POST">
-                    <input type="hidden" name="search_type" value="cyp">
-                    <div class="mb-3">
-                        <label class="form-label">
-                            Drug Name
-                        </label>
-                        <input
-                            type="text"
-                            name="cyp_drug"
-                            class="form-control"
-                            value="{{ cyp_drug | default('', true) }}"
-                            placeholder="i.e., Oxycodone, Hydrocodone, Tramadol, Buprenorphine"
-                            required
-                            >
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">
-                            Target CYP Enzymes
-                        </label>
-                        <input
-                            type="text"
-                            name="cyp_enzymes"
-                            class="form-control"
-                            value="{{ cyp_enzymes | default('CYP2D6, CYP3A4', true) }}"
-                            placeholder="CYP2D6, CYP3A4"
-                            required
-                            >
-                    </div>
-                    <button type="submit" class="btn btn-primary">
-                        Retrieve CYP Timeline
-                    </button>
-                </form>
+                <h4>Latest Available FDA Label — CYP Metabolism & Interactions</h4>
+                <p class="text-muted">One latest available openFDA labeling record per drug, selected by effective date. This is not necessarily the most recent substantive label change or the original approval date.</p>
+                <div class="table-responsive"><table class="table table-bordered table-striped align-middle">
+                    <thead class="table-dark"><tr><th>Drug</th><th>Version</th><th>Effective label date</th><th>LLM label summary</th><th>Details</th></tr></thead>
+                    <tbody>
+                    {% for row in latest_labels %}
+                    <tr><td>{{ row.drug_name }}</td><td>{{ row.version or 'N/A' }}</td><td>{{ row.date_readable or 'N/A' }}</td>
+                    <td>{{ row.label_summary or 'Not available' }}
+                    {% if row.llm_status in ('error', 'failed') %}<div class="small text-danger">LLM unavailable: {{ row.llm_error or 'check server logs' }}</div>{% endif %}
+                    {% if row.error %}<div class="small text-danger">{{ row.error }}</div>{% endif %}</td>
+                    <td>{% if row.id %}<button type="button" class="btn btn-sm btn-outline-primary" onclick="showCypDetails(this)" data-record-id="{{ row.id }}">View Details</button>{% else %}N/A{% endif %}</td></tr>
+                    {% endfor %}
+                    </tbody></table></div>
             </div>
-            {% if cyp_data is defined and cyp_data and not cyp_data.get("success") %}
-                <div class="alert alert-warning" role="alert">
-                    CYP history error: {{ cyp_data.get("error", "Unknown error") }}
-                </div>
-            {% endif %}
-            {% if cyp_data is defined and cyp_data and cyp_data.get("success") %}
-                <div class="card shadow-sm p-4 mb-4">
-                    <h4>
-                        CYP Label Records: {{ cyp_data.get("drug_name", "N/A") }}
-                    </h4>
-                    <p>
-                        <strong>
-                            API Matches:
-                        </strong>
-                        {{ cyp_data.get("total_matches", 0) }}
-                        <br>
-                        <strong>
-                            Records Retrieved:
-                        </strong>
-                        {{ cyp_data.get("total_revisions", 0) }}
-                        <br>
-                        <strong>
-                            Distinct Label Sets:
-                        </strong>
-                        {{ cyp_data.get("total_label_sets", 0) }}
-                        <br>
-                        <strong>
-                            Records with CYP Evidence:
-                        </strong>
-                        {{ cyp_data.get("revisions_with_cyp", 0) }}
-                    </p>
-                    {% if cyp_data.get("truncated", false) %}
-                        <div class="alert alert-warning">
-                            Only part of the matching records could be retrieved.
-                        </div>
-                    {% endif %}
-                    <div class="table-responsive">
-                        <table class="table table-striped table-bordered
-                            table-hover align-middle">
-                            <thead class="table-dark">
-                                <tr>
-                                    <th>
-                                        Brand
-                                    </th>
-                                    <th>
-                                        Manufacturer
-                                    </th>
-                                    <th>
-                                        Set ID
-                                    </th>
-                                    <th>
-                                        Version
-                                    </th>
-                                    <th>
-                                        Effective Date
-                                    </th>
-                                    <th>
-                                        CYP Evidence
-                                    </th>
-                                    <th>
-                                        Details
-                                    </th>
-                                </tr>
-                            </thead>
-
-                            <tbody>
-                                {% for revision in cyp_data.revisions %}
-                                    <tr>
-                                        <td>{{ revision.brand_name or "N/A" }}</td>
-                                        <td>{{ revision.manufacturer or "N/A" }}</td>
-                                        <td>
-                                            <small>{{ revision.set_id or "N/A" }}</small>
-                                        </td>
-                                        <td>{{ revision.version or "N/A" }}</td>
-                                        <td>{{ revision.date_readable or "N/A" }}</td>
-
-                                        <td>
-                                            {% if revision.has_cyp_matches %}
-                                                <span class="badge bg-success">
-                                                    Found: {{ revision.enzymes | join(", ") }}
-                                                </span>
-                                            {% else %}
-                                                <span class="badge bg-secondary">
-                                                    Not found
-                                                </span>
-                                            {% endif %}
-                                        </td>
-
-                                        <td>
-                                            {% if revision.is_current %}
-                                                <button
-                                                    type="button"
-                                                    class="btn btn-sm btn-outline-primary"
-                                                    onclick="showCypDetails(this)"
-                                                    data-record-id="{{ revision.id }}"
-                                                >
-                                                    View Label Details
-                                                </button>
-                                            {% else %}
-                                                <button
-                                                    type="button"
-                                                    class="btn btn-sm btn-outline-secondary"
-                                                    onclick="showCypDetails(this)"
-                                                    data-record-id="{{ revision.id }}"
-                                                >
-                                                    View Historical Evidence
-                                                </button>
-                                            {% endif %}
-                                        </td>
-
-                                    </tr>
-                                {% else %}
-                                    <tr>
-                                        <td colspan="7" class="text-center">
-                                            No labeling records found.
-                                        </td>
-                                    </tr>
-                                {% endfor %}
-                            </tbody>
-
-                        </table>
-                    </div>
-                </div>
-            {% endif %}
-
             <div class="modal fade" id="cypDetailsModal" tabindex="-1">
                 <div class="modal-dialog modal-xl modal-dialog-scrollable">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title">FDA CYP Label Evidence</h5>
+                            <h5 class="modal-title">FDA Label Metabolism & Interactions</h5>
                             <button
                                 type="button"
                                 class="btn-close"
@@ -389,6 +218,13 @@
                         </strong>
                         {{ rag_data.get("query", "") }}
                     </p>
+                    {% if source == 'pdf' %}
+                    <h5>Databricks LLM Answer</h5>
+                    {% if rag_data.get('llm_status') == 'success' and rag_data.get('grounded_answer') %}
+                        <div class="alert alert-info" style="white-space:pre-wrap">{{ rag_data.grounded_answer.get('answer', '') }}</div>
+                    {% else %}<div class="alert alert-warning">LLM answer unavailable: {{ rag_data.get('llm_error', 'No relevant passages or LLM result') }}</div>{% endif %}
+                    {% endif %}
+                    <h5>Retrieved Source Passages</h5>
                     {% for match in rag_data.get("matches", []) %}
                         <div class="card mb-3">
                             <div class="card-header bg-light">
@@ -438,9 +274,7 @@
             body.textContent = "Retrieving FDA evidence...";
             modal.show();
 
-            const enzymes = document.querySelector(
-                'input[name="cyp_enzymes"]'
-            ).value.split(",").map(value => value.trim()).filter(Boolean);
+            const enzymes = ["CYP2D6", "CYP3A4"];
 
             try {
                 const response = await fetch("/api/cyp-label-details", {
@@ -476,6 +310,37 @@
                 heading.textContent =
                     `Version ${data.version || "N/A"} — ${data.effective_date || "N/A"}`;
                 body.appendChild(heading);
+
+                const summaryTitle = document.createElement("h6");
+                summaryTitle.className = "mt-3";
+                summaryTitle.textContent = "LLM Label Summary";
+                body.appendChild(summaryTitle);
+                const summary = document.createElement("p");
+                summary.textContent = data.label_summary || "Summary unavailable";
+                body.appendChild(summary);
+
+                const details = data.structured_details;
+                if (details) {
+                    const enzymeTitle = document.createElement("h6");
+                    enzymeTitle.textContent = "Enzyme Metabolism";
+                    body.appendChild(enzymeTitle);
+                    const enzymeText = document.createElement("p");
+                    enzymeText.textContent = (details.enzymes || []).join(", ") || "Not stated in selected excerpts";
+                    body.appendChild(enzymeText);
+                    const interactionTitle = document.createElement("h6");
+                    interactionTitle.textContent = "Drug Interactions";
+                    body.appendChild(interactionTitle);
+                    for (const item of (details.interactions || [])) {
+                        const entry = document.createElement("p");
+                        entry.className = "border rounded p-2";
+                        entry.textContent = [item.drug_or_class, item.mechanism, item.clinical_consequence, item.recommendation, item.source_section].filter(Boolean).join(" | ");
+                        body.appendChild(entry);
+                    }
+                }
+                const sourceTitle = document.createElement("h6");
+                sourceTitle.className = "mt-3";
+                sourceTitle.textContent = "FDA Source Evidence";
+                body.appendChild(sourceTitle);
 
                 if (!data.sections.length) {
                     const message = document.createElement("p");

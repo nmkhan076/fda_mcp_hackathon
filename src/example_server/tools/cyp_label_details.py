@@ -2,6 +2,7 @@
 import os
 import re
 import uuid
+from example_server.tools.drug_label_history import summarize_record, evidence_for_record
 
 import httpx
 
@@ -228,7 +229,10 @@ async def fetch_label_details(record_id, cyp_targets):
 
     openfda = record.get("openfda") or {}
 
+    llm_result = await summarize_record(record, targets)
     return {
+        **llm_result,
+        "source_evidence": evidence_for_record(record, targets),
         "success": True,
         "id": record_id,
         "set_id": record.get("set_id"),
