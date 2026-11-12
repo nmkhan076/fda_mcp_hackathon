@@ -3,6 +3,7 @@ from datetime import datetime
 import asyncio
 import re
 from example_server.databricks_llm import grounded_completion
+from example_server.dailymed_fallback import find_dailymed_brand
 import httpx
 from fastmcp import FastMCP
 
@@ -187,10 +188,16 @@ async def build_history(
         }
 
     if not records:
-        return {
-            "success": False,
-            "error": f"No labeling records found for {drug_name}.",
-        }
+        try:
+            async with httpx.AsyncClient(timeout=35) as client:
+                fallback = await find_dailymed_brand(drug_name, client)
+            if fallback:
+                records = [fallback]
+                total_matches = 1
+        except (httpx.HTTPError, ValueError) as exc:
+            return {"success": False, "error": f"DailyMed fallback failed: {type(exc).__name__}: {exc}"}
+    if not records:
+        return {"success": False, "error": f"No labeling records found for {drug_name} in openFDA or DailyMed."}
 
     # 3. Sort by effective date and version
     def version_number(record):
@@ -249,6 +256,8 @@ async def build_history(
 
         revisions.append({
             "id": record.get("id"),
+            "source_provider": record.get("source_provider", "openFDA"),
+            "source": record.get("source") or URL,
             "set_id": record.get("set_id"),
             "version": record.get("version"),
             "date": effective_date,
@@ -334,7 +343,10 @@ async def latest_four_labels() -> dict:
                         record = results[0]
                         break
             if record is None:
-                return {"drug_name": drug, "error": "No matching FDA label", "llm_status": "skipped"}
+                async with httpx.AsyncClient(timeout=35) as fallback_client:
+                    record = await find_dailymed_brand(drug, fallback_client)
+            if record is None:
+                return {"drug_name": drug, "error": "No matching label in openFDA or DailyMed", "llm_status": "skipped"}
             summary = await summarize_record(record, targets)
             return {
                 "drug_name": drug,
@@ -343,6 +355,8 @@ async def latest_four_labels() -> dict:
                 "version": record.get("version"),
                 "date_readable": formatted_date(record.get("effective_time")),
                 "effective_time": record.get("effective_time"),
+                "source_provider": record.get("source_provider", "openFDA"),
+                "source": record.get("source") or URL,
                 **summary,
             }
         except Exception as exc:
