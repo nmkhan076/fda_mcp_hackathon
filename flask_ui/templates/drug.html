@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>
+            OpenFDA MCP Explorer
+        </title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+            rel="stylesheet">
+    </head>
+    <body class="bg-light">
+        <div class="container py-4">
+            <h2>
+                OpenFDA Drug Explorer
+            </h2>
+            <p class="text-muted">
+                Flask interface connected to Databricks MCP
+            </p>
+<nav class="nav nav-pills gap-2 mb-4"><a class="nav-link {% if active_page == 'drug' %}active{% endif %}" href="{{ url_for('drug_page') }}">Drug Label Search</a><a class="nav-link {% if active_page == 'cyp' %}active{% endif %}" href="{{ url_for('cyp_page') }}">CYP Label History</a><a class="nav-link {% if active_page == 'rag' %}active{% endif %}" href="{{ url_for('rag_page') }}">FDA Evidence RAG</a></nav>
+{% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+            <div class="card shadow-sm p-4 mb-4">
+                <form method="POST">
+                    <input type="hidden" name="search_type" value="drug">
+                    <label class="form-label">
+                        Enter drug brand name
+                    </label>
+                    <input type="text"
+                        name="drug_name"
+                        class="form-control mb-3"
+                        value="{{ drug_name | default('', true) }}"
+                        placeholder="OxyContin">
+                    <button class="btn btn-primary">
+                        Search Drug
+                    </button>
+                </form>
+            </div>
+            {% if drug_data is defined and drug_data and drug_data.get("success", true) %}
+                <div class="card shadow-sm p-4 mb-4">
+                    <h4>
+                        FDA Drug Label Information
+                    </h4>
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-striped">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th style="width: 30%;">
+                                        Field
+                                    </th>
+                                    <th>
+                                        Information
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <th>
+                                        Brand Name
+                                    </th>
+                                    <td>
+                                        {{ drug_data.get("brand_name", []) | join(", ") if drug_data.get("brand_name") is sequence and drug_data.get("brand_name") is not string else (drug_data.get("brand_name") or "N/A") }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>
+                                        Generic Name
+                                    </th>
+                                    <td>
+                                        {{ drug_data.get("generic_name", []) | join(", ") if drug_data.get("generic_name") is sequence and drug_data.get("generic_name") is not string else (drug_data.get("generic_name") or "N/A") }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>
+                                        Manufacturer
+                                    </th>
+                                    <td>
+                                        {{ drug_data.get("manufacturer", []) | join(", ") if drug_data.get("manufacturer") is sequence and drug_data.get("manufacturer") is not string else (drug_data.get("manufacturer") or "N/A") }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>
+                                        Set ID
+                                    </th>
+                                    <td>
+                                        {{ drug_data.get("set_id") or "N/A" }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>
+                                        Effective Date
+                                    </th>
+                                    <td>
+                                        {{ drug_data.get("effective_time") or "N/A" }}
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <h5 class="mt-3">Boxed Warnings — LLM Structured Points</h5>
+                    {% if drug_data.get('llm_status') == 'success' and drug_data.get('structured_warnings') %}
+                        <ul>{% for point in drug_data.structured_warnings.get('boxed_warning_points', []) %}<li>{{ point }}</li>{% else %}<li>No boxed warning in retrieved label.</li>{% endfor %}</ul>
+                        <h5>Other Warnings — LLM Structured Points</h5>
+                        <ul>{% for point in drug_data.structured_warnings.get('warning_points', []) %}<li>{{ point }}</li>{% else %}<li>No additional warnings in retrieved label.</li>{% endfor %}</ul>
+                        <h5>Adverse Reactions — LLM Structured Points</h5>
+                        <ul>{% for point in drug_data.structured_warnings.get('adverse_reaction_points', []) %}<li>{{ point }}</li>{% else %}<li>No adverse reactions in retrieved label.</li>{% endfor %}</ul>
+                    {% else %}
+                        <div class="alert alert-warning">LLM summary unavailable: {{ drug_data.get('llm_error', 'No LLM response') }}</div>
+                    {% endif %}
+                    <details class="mt-3"><summary>View original openFDA warning and adverse-reaction text</summary>
+                    {% for key in ['boxed_warning', 'warnings', 'adverse_reactions'] %}<h6 class="mt-3">{{ key.replace('_',' ').title() }}</h6>
+                    {% for item in drug_data.get(key, []) %}<p style="white-space:pre-wrap">{{ item }}</p>{% else %}<p>Not provided.</p>{% endfor %}{% endfor %}
+                    </details>
+                </div>
+            {% endif %}
+    <script>
+      document.addEventListener('toggle', function(event) {
+        if (!event.target.matches('details') || !event.target.open) return;
+        const img = event.target.querySelector('img.rag-table-preview[data-src]');
+        if (img) { img.src = img.dataset.src; img.removeAttribute('data-src'); }
+      }, true);
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        async function showCypDetails(button) {
+            const modalElement = document.getElementById("cypDetailsModal");
+            const body = document.getElementById("cypDetailsBody");
+            const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
+
+            body.textContent = "Retrieving FDA evidence...";
+            modal.show();
+
+            const enzymes = ["CYP2D6", "CYP3A4"];
+
+            try {
+                const response = await fetch("/api/cyp-label-details", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        record_id: button.dataset.recordId,
+                        enzymes: enzymes
+                    })
+                });
+                const contentType = response.headers.get("content-type") || "";
+                const responseText = await response.text();
+
+                if (!contentType.includes("application/json")) {
+                    throw new Error(
+                        `Server returned HTTP ${response.status} instead of JSON. ` +
+                        `Response: ${responseText.substring(0, 200)}`
+                    );
+                }
+
+                const data = JSON.parse(responseText);
+
+
+                if (!response.ok || !data.success) {
+                    throw new Error(data.error || "Retrieval failed.");
+                }
+
+                body.replaceChildren();
+
+                const heading = document.createElement("h6");
+                heading.textContent =
+                    `Version ${data.version || "N/A"} — ${data.effective_date || "N/A"}`;
+                body.appendChild(heading);
+
+                const summaryTitle = document.createElement("h6");
+                summaryTitle.className = "mt-3";
+                summaryTitle.textContent = "LLM Label Summary";
+                body.appendChild(summaryTitle);
+                const summary = document.createElement("p");
+                summary.textContent = data.label_summary || "Summary unavailable";
+                body.appendChild(summary);
+
+                const details = data.structured_details;
+                if (details) {
+                    const enzymeTitle = document.createElement("h6");
+                    enzymeTitle.textContent = "Enzyme Metabolism";
+                    body.appendChild(enzymeTitle);
+                    const enzymeText = document.createElement("p");
+                    enzymeText.textContent = (details.enzymes || []).join(", ") || "Not stated in selected excerpts";
+                    body.appendChild(enzymeText);
+                    const interactionTitle = document.createElement("h6");
+                    interactionTitle.textContent = "Drug Interactions";
+                    body.appendChild(interactionTitle);
+                    for (const item of (details.interactions || [])) {
+                        const entry = document.createElement("p");
+                        entry.className = "border rounded p-2";
+                        entry.textContent = [item.drug_or_class, item.mechanism, item.clinical_consequence, item.recommendation, item.source_section].filter(Boolean).join(" | ");
+                        body.appendChild(entry);
+                    }
+                }
+                const sourceTitle = document.createElement("h6");
+                sourceTitle.className = "mt-3";
+                sourceTitle.textContent = "FDA Source Evidence";
+                body.appendChild(sourceTitle);
+
+                if (!data.sections.length) {
+                    const message = document.createElement("p");
+                    message.textContent = "No matching CYP evidence found.";
+                    body.appendChild(message);
+                    return;
+                }
+
+                for (const section of data.sections) {
+                    const title = document.createElement("h6");
+                    title.className = "mt-4";
+                    title.textContent = section.title;
+                    body.appendChild(title);
+
+                    for (const excerpt of section.excerpts) {
+                        const paragraph = document.createElement("p");
+                        paragraph.className = "border rounded p-3 bg-light";
+                        paragraph.textContent = excerpt;
+                        body.appendChild(paragraph);
+                    }
+                }
+            } catch (error) {
+                body.textContent = error.message;
+            }
+        }
+    </script>
+    </body>
+</html>
+

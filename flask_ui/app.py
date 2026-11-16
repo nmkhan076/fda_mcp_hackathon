@@ -5,7 +5,7 @@ import traceback
 import time
 from threading import Lock
 from datetime import timedelta
-from flask import Flask, render_template, request, jsonify, send_from_directory, Response, abort
+from flask import Flask, render_template, request, jsonify, send_from_directory, Response, abort, redirect, url_for
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
@@ -186,8 +186,15 @@ def cached_latest_labels():
                 _latest_cache["expires"] = time.monotonic() + 60
         return _latest_cache["labels"]
 
-@app.route("/", methods=["GET", "POST"])
+@app.get("/")
 def home():
+    return redirect(url_for("drug_page"))
+
+@app.route("/drug", methods=["GET", "POST"], endpoint="drug_page")
+@app.route("/cyp", methods=["GET", "POST"], endpoint="cyp_page")
+@app.route("/rag", methods=["GET", "POST"], endpoint="rag_page")
+def module_page():
+    page = request.path.strip("/")
     drug_data = None
     rag_data = None
     error = None
@@ -199,7 +206,9 @@ def home():
     source = "pdf"
 
     if request.method == "POST":
-        search_type = request.form.get("search_type", "drug")
+        search_type = request.form.get("search_type", page)
+        if search_type != page:
+            abort(400)
 
         if search_type == "drug":
             drug_name = request.form.get("drug_name", "").strip()
@@ -268,7 +277,8 @@ def home():
                     traceback.print_exc()
                     error = "CYP history retrieval failed."
     return render_template(
-        "index.html",
+        f"{page}.html",
+        active_page=page,
         drug_data=drug_data,
         rag_data=rag_data,
         drug_name=drug_name,
@@ -278,7 +288,7 @@ def home():
         cyp_data=cyp_data,
         cyp_drug=cyp_drug,
         cyp_enzymes=cyp_enzymes,
-        latest_labels=cached_latest_labels(),
+        latest_labels=cached_latest_labels() if page == "cyp" else [],
     )
 
 async def fetch_cyp_details(record_id, enzymes):

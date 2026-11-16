@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>
+            OpenFDA MCP Explorer
+        </title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+            rel="stylesheet">
+    </head>
+    <body class="bg-light">
+        <div class="container py-4">
+            <h2>
+                OpenFDA Drug Explorer
+            </h2>
+            <p class="text-muted">
+                Flask interface connected to Databricks MCP
+            </p>
+<nav class="nav nav-pills gap-2 mb-4"><a class="nav-link {% if active_page == 'drug' %}active{% endif %}" href="{{ url_for('drug_page') }}">Drug Label Search</a><a class="nav-link {% if active_page == 'cyp' %}active{% endif %}" href="{{ url_for('cyp_page') }}">CYP Label History</a><a class="nav-link {% if active_page == 'rag' %}active{% endif %}" href="{{ url_for('rag_page') }}">FDA Evidence RAG</a></nav>
+{% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+            <!-- FDA RAG Evidence Search -->
+            <div class="card shadow-sm p-4 mt-4 mb-4">
+                <h4>
+                    FDA Opioid Safety Evidence Search
+                </h4>
+                <p class="text-muted">
+                    Search FDA opioid safety documents using
+                    the MCP retrieval tools.
+                </p>
+                <form method="POST">
+                    <input
+                        type="hidden"
+                        name="search_type"
+                        value="rag"
+                        >
+                    <div class="mb-3">
+                        <label class="form-label">
+                            Enter your question
+                        </label>
+                        <textarea
+                            name="query"
+                            class="form-control"
+                            rows="3"
+                            placeholder="What does FDA say about respiratory depression?"
+                            required
+                            >
+                            {{ query | default('', true) }}
+                        </textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">
+                            Select FDA Source
+                        </label>
+                        <select
+                            name="source"
+                            class="form-select"
+                            >
+                            <option value="pdf"
+                                {% if source is defined and source == "pdf" %}selected{% endif %}>
+                                FDA Opioid Label Updates (PDF)
+                            </option>
+                            <option value="web"
+                                {% if source is defined and source == "web" %}selected{% endif %}>
+                                FDA Opioid Medications (Webpage)
+                            </option>
+                        </select>
+                    </div>
+                    <button
+                        type="submit"
+                        class="btn btn-success"
+                        >
+                        Search FDA Evidence
+                    </button>
+                </form>
+            </div>
+            <!-- FDA RAG Results -->
+            {% if rag_data is defined and rag_data %}
+                <div class="card shadow-sm p-4 mt-4">
+                    <h4 class="mb-3">
+                        Retrieved FDA Evidence
+                    </h4>
+                    <p>
+                        <strong>
+                            Question:
+                        </strong>
+                        {{ rag_data.get("query", "") }}
+                    </p>
+                    {% if source == 'pdf' %}
+                    <h5>Databricks LLM Answer</h5>
+                    {% if rag_data.get('llm_status') == 'success' and rag_data.get('grounded_answer') %}
+                        <div class="alert alert-info" style="white-space:pre-wrap">{{ rag_data.grounded_answer.get('answer', '') }}</div>
+                    {% else %}<div class="alert alert-warning">LLM answer unavailable: {{ rag_data.get('llm_error', 'No relevant passages or LLM result') }}</div>{% endif %}
+                    {% endif %}
+                    {% set ranked = rag_data.get('evidence', rag_data.get('matches', [])) %}
+                    {% if rag_data.get('best_evidence') %}
+                        <h5 class="mt-3">Strongest retrieved evidence</h5>
+                        <p class="text-muted small">Ranked using TF-IDF similarity. This is a retrieval score, not a measure of clinical certainty.</p>
+                    {% endif %}
+                    <h5>Most relevant passage and PDF table</h5>
+                    <p class="text-muted small">Up to two readable passages and one original table. Table images load separately from Flask, not through MCP.</p>
+                    {% for match in ranked %}
+                        <div class="card mb-3 {% if loop.first %}border-primary{% endif %}">
+                            <div class="card-header bg-light d-flex flex-wrap gap-2 align-items-center">
+                                <strong>{{ match.get('id', 'E' ~ loop.index) }} · {{ match.get('title', 'FDA Source') }}</strong>
+                                <span class="badge bg-secondary">{{ match.get('type', 'passage') | title }}</span>
+                                {% if match.get('page') %}<span class="badge bg-secondary">Page {{ match.page }}</span>{% endif %}
+                                <span class="badge bg-primary">Similarity {{ '%.3f'|format(match.get('score') or 0) }}</span>
+                            </div>
+                            <div class="card-body">
+                                {% if match.get('type') == 'table' %}
+                                    <h6>Original FDA PDF table</h6>
+                                    <p class="text-muted small">Image served separately by Flask; extracted table text is hidden because PDF columns may be distorted.</p>
+                                    {% if match.get('table_number') and match.get('page') %}
+                                        <div class="table-responsive border rounded p-2 mb-3">
+                                            <img src="{{ url_for('pdf_table_preview', page=match.page, table_number=match.table_number) }}" alt="Original FDA PDF table, page {{ match.page }}" class="img-fluid" style="max-width:100%;height:auto" loading="lazy">
+                                        </div>
+                                    {% else %}<p>Table image unavailable.</p>{% endif %}
+                                {% else %}
+                                    <h6>Retrieved passage</h6>
+                                    <p class="border rounded p-3 bg-light" style="white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7">{{ match.get('text', '') }}</p>
+                                {% endif %}
+                                <a href="{{ match.get('source_url') or match.get('source', '#') }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-primary btn-sm">View original FDA PDF / source</a>
+                            </div>
+                        </div>
+                    {% else %}
+                        <p class="text-muted">No relevant FDA evidence found.</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+    <script>
+      document.addEventListener('toggle', function(event) {
+        if (!event.target.matches('details') || !event.target.open) return;
+        const img = event.target.querySelector('img.rag-table-preview[data-src]');
+        if (img) { img.src = img.dataset.src; img.removeAttribute('data-src'); }
+      }, true);
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        async function showCypDetails(button) {
+            const modalElement = document.getElementById("cypDetailsModal");
+            const body = document.getElementById("cypDetailsBody");
+            const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
+
+            body.textContent = "Retrieving FDA evidence...";
+            modal.show();
+
+            const enzymes = ["CYP2D6", "CYP3A4"];
+
+            try {
+                const response = await fetch("/api/cyp-label-details", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        record_id: button.dataset.recordId,
+                        enzymes: enzymes
+                    })
+                });
+                const contentType = response.headers.get("content-type") || "";
+                const responseText = await response.text();
+
+                if (!contentType.includes("application/json")) {
+                    throw new Error(
+                        `Server returned HTTP ${response.status} instead of JSON. ` +
+                        `Response: ${responseText.substring(0, 200)}`
+                    );
+                }
+
+                const data = JSON.parse(responseText);
+
+
+                if (!response.ok || !data.success) {
+                    throw new Error(data.error || "Retrieval failed.");
+                }
+
+                body.replaceChildren();
+
+                const heading = document.createElement("h6");
+                heading.textContent =
+                    `Version ${data.version || "N/A"} — ${data.effective_date || "N/A"}`;
+                body.appendChild(heading);
+
+                const summaryTitle = document.createElement("h6");
+                summaryTitle.className = "mt-3";
+                summaryTitle.textContent = "LLM Label Summary";
+                body.appendChild(summaryTitle);
+                const summary = document.createElement("p");
+                summary.textContent = data.label_summary || "Summary unavailable";
+                body.appendChild(summary);
+
+                const details = data.structured_details;
+                if (details) {
+                    const enzymeTitle = document.createElement("h6");
+                    enzymeTitle.textContent = "Enzyme Metabolism";
+                    body.appendChild(enzymeTitle);
+                    const enzymeText = document.createElement("p");
+                    enzymeText.textContent = (details.enzymes || []).join(", ") || "Not stated in selected excerpts";
+                    body.appendChild(enzymeText);
+                    const interactionTitle = document.createElement("h6");
+                    interactionTitle.textContent = "Drug Interactions";
+                    body.appendChild(interactionTitle);
+                    for (const item of (details.interactions || [])) {
+                        const entry = document.createElement("p");
+                        entry.className = "border rounded p-2";
+                        entry.textContent = [item.drug_or_class, item.mechanism, item.clinical_consequence, item.recommendation, item.source_section].filter(Boolean).join(" | ");
+                        body.appendChild(entry);
+                    }
+                }
+                const sourceTitle = document.createElement("h6");
+                sourceTitle.className = "mt-3";
+                sourceTitle.textContent = "FDA Source Evidence";
+                body.appendChild(sourceTitle);
+
+                if (!data.sections.length) {
+                    const message = document.createElement("p");
+                    message.textContent = "No matching CYP evidence found.";
+                    body.appendChild(message);
+                    return;
+                }
+
+                for (const section of data.sections) {
+                    const title = document.createElement("h6");
+                    title.className = "mt-4";
+                    title.textContent = section.title;
+                    body.appendChild(title);
+
+                    for (const excerpt of section.excerpts) {
+                        const paragraph = document.createElement("p");
+                        paragraph.className = "border rounded p-3 bg-light";
+                        paragraph.textContent = excerpt;
+                        body.appendChild(paragraph);
+                    }
+                }
+            } catch (error) {
+                body.textContent = error.message;
+            }
+        }
+    </script>
+    </body>
+</html>
+
