@@ -17,16 +17,17 @@ def register(mcp: FastMCP):
         and FDA PDF page references.
         """
         result = search_fda_source(query=query, source_type="pdf", top_k=top_k)
-        if not result.get("success") or not result.get("matches"):
+        if not result.get("success") or not result.get("evidence"):
             result["grounded_answer"] = None
             result["llm_status"] = "skipped"
             return result
         evidence = {
             "question": query,
             "passages": [
-                {"passage_id": i + 1, "text": match["text"],
+                {"passage_id": i + 1, "evidence_id": match["id"],
+                 "type": match["type"], "text": match["text"],
                  "page": match["page"], "source": match["source"]}
-                for i, match in enumerate(result["matches"])
+                for i, match in enumerate(result["evidence"])
             ],
         }
         prompt = (
@@ -44,7 +45,7 @@ def register(mcp: FastMCP):
             if (
                 not isinstance(answer.get("answer"), str)
                 or not isinstance(ids, list)
-                or any(type(i) is not int or i < 1 or i > len(result["matches"])
+                or any(type(i) is not int or i < 1 or i > len(result["evidence"])
                        for i in ids)
             ):
                 raise ValueError("Unexpected grounded answer format")

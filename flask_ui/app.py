@@ -5,7 +5,7 @@ import traceback
 import time
 from threading import Lock
 from datetime import timedelta
-from flask import Flask, render_template, request, jsonify, send_from_directory
+from flask import Flask, render_template, request, jsonify, send_from_directory, Response, abort
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
@@ -345,6 +345,30 @@ def cyp_label_details_api():
 
     return jsonify(result), (200 if result.get("success") else 400)
 
+
+
+
+@app.get("/api/pdf-table-preview/<int:page>/<int:table_number>")
+def pdf_table_preview(page, table_number):
+    """Render a table locally; never send image bytes through MCP."""
+    from pathlib import Path
+    import pymupdf as fitz
+
+    # Set FDA_RAG_PDF_PATH to the same PDF used by the MCP RAG tool.
+    pdf_path = Path(os.getenv("FDA_RAG_PDF_PATH", "data/opioid_label_updates.pdf"))
+    if not pdf_path.is_file() or page < 1 or table_number < 1:
+        abort(404)
+    with fitz.open(str(pdf_path)) as doc:
+        if page > len(doc):
+            abort(404)
+        pdf_page = doc[page - 1]
+        tables = pdf_page.find_tables().tables
+        if table_number > len(tables):
+            abort(404)
+        bbox = fitz.Rect(tables[table_number - 1].bbox)
+        pix = pdf_page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5), clip=bbox, alpha=False)
+        return Response(pix.tobytes("jpeg", jpg_quality=65), mimetype="image/jpeg",
+                        headers={"Cache-Control": "public, max-age=3600"})
 
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=5000, debug=True)
