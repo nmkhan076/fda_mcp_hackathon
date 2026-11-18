@@ -1,0 +1,60 @@
+trial,case_id,category,mode,query,ground_truth_answer,source_locator,scope,expected_tool,answer,correctness,evidence_grounding,scope_adherence,uncertainty_handling,historical_change_supported,approval_date_boundary_correct,judge_rationale,expected_tool_invoked,expected_tool_succeeded,tool_success_rate,source_match,tool_call_count,tool_calls_json,latency_s,error
+1,1,label,baseline,What FDA label information can you retrieve for Tramadol?,"The FDA labeling record identifies the product as tramadol hydrochloride extended-release tablets, an oral prescription opioid analgesic indicated for severe and persistent pain requiring an opioid analgesic when alternative treatment options are inadequate. The labeling states that the extended-release tablets are not indicated for as-needed pain relief. The record contains prescribing information covering indications and usage, dosage and administration, dosage forms and strengths, contraindications, boxed warnings, warnings and precautions, adverse reactions, drug interactions, use in specific populations, drug abuse and dependence, overdose, clinical pharmacology, clinical studies, and product supply information.
+
+The product is associated with Sun Pharmaceutical Industries, Inc., application number ANDA201384, and product NDCs 47335-859, 47335-860, and 47335-861. The labeling effective date is November 20, 2025.",tramadol JSON results[0] | set_id=004de5a4-80f8-4040-a6ea-be5e99352a36 | id=a994e116-d201-47f9-baaf-dd76a84eba7e | effective_time=20251120 | version=24 | field=openfda; indications_and_usage; dosage_and_administration; boxed_warning,in_scope,get_drug_label,"FDA-approved tramadol labeling varies by product (immediate-release tablets, extended-release tablets/capsules, and combination products such as tramadol/acetaminophen). The current prescribing information for a specific NDA/ANDA product should be checked.
+
+Common FDA label sections for tramadol products include:
+
+- **Boxed Warning:** Risks of addiction, abuse, and misuse; life-threatening respiratory depression; accidental ingestion; neonatal opioid withdrawal syndrome; and potentially dangerous interactions involving CYP enzymes or other CNS depressants, depending on the product label.
+- **Indications and Usage:** Management of pain severe enough to require an opioid analgesic and for which alternative treatments are inadequate. Exact wording and population restrictions vary by formulation.
+- **Contraindications:** Often include significant respiratory depression, acute/severe bronchial asthma in an unmonitored setting, known/suspected gastrointestinal obstruction including paralytic ileus, and hypersensitivity to tramadol. Labels also restrict pediatric use in specified circumstances.
+- **Warnings and Precautions:** Respiratory depression, sedation with benzodiazepines/other CNS depressants, serotonin syndrome, seizure risk, suicide risk/mental-health precautions, hypotension, adrenal insufficiency, and risks in older adults or patients with hepatic/renal impairment.
+- **Drug Interactions:** CYP2D6 and CYP3A4 inhibitors/inducers may alter tramadol and/or active-metabolite exposure; labels also address serotonergic drugs, benzodiazepines, alcohol, and other CNS depressants.
+- **Adverse Reactions:** Commonly reported reactions include nausea, dizziness, constipation, headache, somnolence, vomiting, and pruritus; exact frequencies depend on the product and clinical studies described in that label.
+- **Use in Specific Populations:** Pregnancy/lactation information, pediatric restrictions, geriatric considerations, and hepatic/renal impairment information.
+- **Drug Abuse and Dependence:** Controlled-substance status and abuse/dependence-related labeling. Tramadol is federally controlled as a **Schedule IV** substance.
+
+Official FDA sources to locate the current label and approval documents:
+
+- **Drugs@FDA—Tramadol search:** https://www.accessdata.fda.gov/scripts/cder/daf/index.cfm?event=BasicSearch.process  
+  Search for “tramadol,” then open the relevant product’s **Label** or **Approval History, Letters, Reviews, and Related Documents**.
+- **FDA drug-label repository (DailyMed is NLM, not FDA):** FDA-approved application labels are generally available through the individual Drugs@FDA application record.
+
+If you provide a particular tramadol product, manufacturer, dosage form, or application/NDC, I can narrow the label information to that product rather than describing class-wide labeling themes.",1,1,1,1,,,"Provides broadly accurate class-level tramadol label themes and appropriately notes product variation, but does not retrieve or identify the specific Sun ER product, ANDA201384, NDCs, effective date, or record-specific indication/sections.",,,,,0,[],13.845,
+1,1,label,mcp,What FDA label information can you retrieve for Tramadol?,"The FDA labeling record identifies the product as tramadol hydrochloride extended-release tablets, an oral prescription opioid analgesic indicated for severe and persistent pain requiring an opioid analgesic when alternative treatment options are inadequate. The labeling states that the extended-release tablets are not indicated for as-needed pain relief. The record contains prescribing information covering indications and usage, dosage and administration, dosage forms and strengths, contraindications, boxed warnings, warnings and precautions, adverse reactions, drug interactions, use in specific populations, drug abuse and dependence, overdose, clinical pharmacology, clinical studies, and product supply information.
+
+The product is associated with Sun Pharmaceutical Industries, Inc., application number ANDA201384, and product NDCs 47335-859, 47335-860, and 47335-861. The labeling effective date is November 20, 2025.",tramadol JSON results[0] | set_id=004de5a4-80f8-4040-a6ea-be5e99352a36 | id=a994e116-d201-47f9-baaf-dd76a84eba7e | effective_time=20251120 | version=24 | field=openfda; indications_and_usage; dosage_and_administration; boxed_warning,in_scope,get_drug_label,,,,,,,,,,,,,0,[],,RuntimeError: Client failed to connect: All connection attempts failed
+1,2,label,baseline,What adverse reactions are listed in the FDA labeling for Tramadol?,"The FDA labeling for tramadol hydrochloride extended-release tablets lists dizziness, constipation, nausea, headache, somnolence, flushing, pruritus, vomiting, insomnia, and dry mouth as the most common adverse reactions (at least 10% in a treatment group and at least twice the placebo rate).Other reported reactions include diarrhea, asthenia, postural hypotension, increased sweating, decreased appetite, blurred vision, abdominal pain, dyspepsia, tremor, paresthesia, anxiety, depression, and restlessness.
+Serious adverse reactions and risks discussed in the labeling include respiratory depression, serotonin syndrome, seizures, opioid-induced hyperalgesia and allodynia, adrenal insufficiency, severe hypotension, hypersensitivity reactions, withdrawal, and opioid use disorder-related risks.",tramadol JSON results[0] | set_id=004de5a4-80f8-4040-a6ea-be5e99352a36 | id=a994e116-d201-47f9-baaf-dd76a84eba7e | effective_time=20251120 | version=24 | field=adverse_reactions; warnings_and_cautions,in_scope,get_drug_label,"FDA tramadol labeling lists the following commonly reported adverse reactions (the exact table can vary by product/formulation and study):
+
+- Dizziness/vertigo  
+- Nausea  
+- Constipation  
+- Headache  
+- Somnolence (sleepiness)  
+- Vomiting  
+- Pruritus (itching)  
+- Sweating  
+- Dry mouth  
+- Dyspepsia/indigestion  
+- Diarrhea  
+- Asthenia/fatigue or weakness  
+- “CNS stimulation” symptoms, such as nervousness, anxiety, or insomnia  
+
+Other reactions reported in clinical trials or postmarketing reports include abdominal pain, anorexia, confusion, impaired coordination, tremor, rash, palpitations, hypotension or orthostatic hypotension, syncope, urinary retention, and visual disturbances.
+
+FDA labeling also highlights potentially serious reactions in its **Warnings and Precautions** and/or **Adverse Reactions** sections, including:
+
+- Life-threatening respiratory depression  
+- Addiction, abuse, and misuse; withdrawal  
+- Seizures  
+- Serotonin syndrome  
+- Severe hypotension/syncope  
+- Anaphylaxis and other serious allergic reactions  
+- Adrenal insufficiency  
+- Serious skin reactions, including Stevens-Johnson syndrome/toxic epidermal necrolysis (postmarketing reports)  
+- Increased risk from combining with benzodiazepines, alcohol, or other CNS depressants  
+
+Source: FDA-approved tramadol product labeling, especially **Section 6, Adverse Reactions**, and **Section 5, Warnings and Precautions**. The full adverse-reaction list is longer than the summary above and differs somewhat among immediate-release, extended-release, and combination tramadol products.",1,0,1,1,,,"Provides a broadly plausible but incomplete, formulation-mixed summary; it omits several listed common reactions and adds reactions not established by the provided evidence. No actual tool excerpts support the claims.",,,,,0,[],11.042,
+1,2,label,mcp,What adverse reactions are listed in the FDA labeling for Tramadol?,"The FDA labeling for tramadol hydrochloride extended-release tablets lists dizziness, constipation, nausea, headache, somnolence, flushing, pruritus, vomiting, insomnia, and dry mouth as the most common adverse reactions (at least 10% in a treatment group and at least twice the placebo rate).Other reported reactions include diarrhea, asthenia, postural hypotension, increased sweating, decreased appetite, blurred vision, abdominal pain, dyspepsia, tremor, paresthesia, anxiety, depression, and restlessness.
+Serious adverse reactions and risks discussed in the labeling include respiratory depression, serotonin syndrome, seizures, opioid-induced hyperalgesia and allodynia, adrenal insufficiency, severe hypotension, hypersensitivity reactions, withdrawal, and opioid use disorder-related risks.",tramadol JSON results[0] | set_id=004de5a4-80f8-4040-a6ea-be5e99352a36 | id=a994e116-d201-47f9-baaf-dd76a84eba7e | effective_time=20251120 | version=24 | field=adverse_reactions; warnings_and_cautions,in_scope,get_drug_label,,,,,,,,,,,,,0,[],,RuntimeError: Client failed to connect: All connection attempts failed

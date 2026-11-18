@@ -123,15 +123,80 @@
                     const enzymeText = document.createElement("p");
                     enzymeText.textContent = (details.enzymes || []).join(", ") || "Not stated in selected excerpts";
                     body.appendChild(enzymeText);
+
                     const interactionTitle = document.createElement("h6");
+                    interactionTitle.className = "mt-3 mb-3";
                     interactionTitle.textContent = "Drug Interactions";
                     body.appendChild(interactionTitle);
-                    for (const item of (details.interactions || [])) {
-                        const entry = document.createElement("p");
-                        entry.className = "border rounded p-2";
-                        entry.textContent = [item.drug_or_class, item.mechanism, item.clinical_consequence, item.recommendation, item.source_section].filter(Boolean).join(" | ");
-                        body.appendChild(entry);
+
+                    const interactions = details.interactions || [];
+
+                    if (interactions.length > 0) {
+                        const wrapper = document.createElement("div");
+                        wrapper.className = "table-responsive";
+
+                        const table = document.createElement("table");
+                        table.className =
+                            "table table-bordered table-striped table-hover align-middle";
+
+                        const headers = [
+                            "Interacting Drug/Class",
+                            "Mechanism",
+                            "Clinical Consequence",
+                            "Recommendation",
+                            "Source"
+                        ];
+
+                        const thead = document.createElement("thead");
+                        thead.className = "table-dark";
+
+                        const headerRow = document.createElement("tr");
+
+                        headers.forEach(header => {
+                            const th = document.createElement("th");
+                            th.textContent = header;
+                            th.scope = "col";
+                            headerRow.appendChild(th);
+                        });
+
+                        thead.appendChild(headerRow);
+                        table.appendChild(thead);
+
+                        const tbody = document.createElement("tbody");
+
+                        interactions.forEach(item => {
+                            const row = document.createElement("tr");
+
+                            const values = [
+                                item.drug_or_class,
+                                item.mechanism,
+                                item.clinical_consequence,
+                                item.recommendation,
+                                item.source_section
+                            ];
+
+                            values.forEach(value => {
+                                const td = document.createElement("td");
+                                td.textContent = value || "Not stated";
+                                td.style.minWidth = "150px";
+                                td.style.whiteSpace = "normal";
+                                row.appendChild(td);
+                            });
+
+                            tbody.appendChild(row);
+                        });
+
+                        table.appendChild(tbody);
+                        wrapper.appendChild(table);
+                        body.appendChild(wrapper);
+
+                    } else {
+                        const message = document.createElement("p");
+                        message.className = "text-muted";
+                        message.textContent = "No drug interactions found.";
+                        body.appendChild(message);
                     }
+
                 }
                 const sourceTitle = document.createElement("h6");
                 sourceTitle.className = "mt-3";

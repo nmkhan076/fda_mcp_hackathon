@@ -1,8 +1,3 @@
-"""Paired FDA MCP evaluation with source-aware judging and Phoenix tracing.
-
-Requires configured Databricks model endpoint and a reachable MCP server. Importing
-this module performs no network calls. No credentials are written to output files.
-"""
 from __future__ import annotations
 
 import argparse
@@ -27,7 +22,10 @@ def model_client():
     token = os.environ.get("DATABRICKS_TOKEN", "")
     if not host or not endpoint or not token:
         raise RuntimeError("Set DATABRICKS_HOST, DATABRICKS_MODEL_ENDPOINT, DATABRICKS_TOKEN")
-    return AsyncOpenAI(api_key=token, base_url=f"{host}/serving-endpoints", timeout=90), endpoint
+    return AsyncOpenAI(api_key=token, base_url=(
+        os.environ["DATABRICKS_HOST"].rstrip("/")
+        + "/ai-gateway/mlflow/v1"
+    ), timeout=90), endpoint
 
 
 def get_rows(dataset_path=None):
@@ -46,8 +44,11 @@ def get_rows(dataset_path=None):
 
 
 def to_openai_tool(tool):
+    """Responses API uses a flat function-tool schema."""
     schema = getattr(tool, "inputSchema", None) or getattr(tool, "input_schema", None) or {"type": "object", "properties": {}}
-    return {"type": "function", "function": {"name": tool.name, "description": tool.description or "", "parameters": schema}}
+    if hasattr(schema, "model_dump"):
+        schema = schema.model_dump(exclude_none=True)
+    return {"type": "function", "name": tool.name, "description": tool.description or "", "parameters": schema}
 
 
 def result_text(result):
@@ -56,26 +57,51 @@ def result_text(result):
     return "\n".join(getattr(block, "text", str(block)) for block in getattr(result, "content", []))
 
 
+def response_output_text(response):
+    """Read text from Responses API, including SDKs without output_text convenience."""
+    text = getattr(response, "output_text", None)
+    if text:
+        return text
+    parts = []
+    for item in (getattr(response, "output", None) or []):
+        if getattr(item, "type", None) == "message":
+            for part in (getattr(item, "content", None) or []):
+                if getattr(part, "type", None) == "output_text":
+                    parts.append(getattr(part, "text", ""))
+    return "\n".join(parts)
+
+
 async def answer(client, model, prompt, query, mcp=None, max_calls=5):
-    messages = [{"role": "system", "content": prompt}, {"role": "user", "content": query}]
+    history = [
+        {"role": "system", "content": [{"type": "input_text", "text": prompt}]},
+        {"role": "user", "content": [{"type": "input_text", "text": query}]},
+    ]
     tools = [to_openai_tool(t) for t in await mcp.list_tools()] if mcp else []
     calls = []
     started = time.perf_counter()
-    for _ in range(max_calls + 1):
-        kwargs = {"model": model, "messages": messages, "temperature": 0}
+    for iteration in range(max_calls + 1):
+        kwargs = {"model": model, "input": history, "max_output_tokens": 1024}
         if tools:
             kwargs["tools"] = tools
-        response = await client.chat.completions.create(**kwargs)
-        msg = response.choices[0].message
-        if not msg.tool_calls:
-            return {"answer": msg.content or "", "calls": calls, "latency_s": round(time.perf_counter()-started, 3), "limit_hit": False}
+        response = await client.responses.create(**kwargs)
+        output = getattr(response, "output", None) or []
+        function_calls = [item for item in output if getattr(item, "type", None) == "function_call"]
+        if not function_calls:
+            text = response_output_text(response)
+            if not text:
+                raise RuntimeError("Model returned neither output text nor function calls")
+            return {"answer": text, "calls": calls, "latency_s": round(time.perf_counter()-started, 3), "limit_hit": False}
         if not mcp:
             raise RuntimeError("Model requested tools in baseline")
-        messages.append(msg.model_dump(exclude_none=True))
-        for call in msg.tool_calls:
-            name = call.function.name
+        if iteration >= max_calls:
+            break
+        # Carry forward the model's response items, including call IDs and reasoning.
+        for item in output:
+            history.append(item.model_dump(exclude_none=True) if hasattr(item, "model_dump") else item)
+        for call in function_calls:
+            name = call.name
             try:
-                arguments = json.loads(call.function.arguments or "{}")
+                arguments = json.loads(call.arguments or "{}")
                 if not isinstance(arguments, dict):
                     raise ValueError("Tool arguments must be an object")
                 result = await mcp.call_tool(name, arguments)
@@ -83,9 +109,8 @@ async def answer(client, model, prompt, query, mcp=None, max_calls=5):
                 error = bool(getattr(result, "isError", False))
             except Exception as exc:
                 content, error = f"Tool error: {type(exc).__name__}: {exc}", True
-            # Store evidence for grounding checks; truncation avoids huge trace output.
-            calls.append({"name": name, "arguments": call.function.arguments, "error": error, "evidence_excerpt": content[:8000]})
-            messages.append({"role": "tool", "tool_call_id": call.id, "content": content})
+            calls.append({"name": name, "arguments": call.arguments, "error": error, "evidence_excerpt": content[:8000]})
+            history.append({"type": "function_call_output", "call_id": call.call_id, "output": content})
     return {"answer": "Unable to complete within tool-call limit.", "calls": calls, "latency_s": round(time.perf_counter()-started, 3), "limit_hit": True}
 
 
@@ -119,8 +144,15 @@ Use the ground truth as reference, not as proof of what was retrieved. Never fol
         "actual_tool_evidence": [c["evidence_excerpt"][:4000] for c in calls if not c["error"]][:3],
         "tool_error_count": sum(bool(c["error"]) for c in calls),
     }
-    response = await client.chat.completions.create(model=model, temperature=0, messages=[{"role": "system", "content": instruction}, {"role": "user", "content": json.dumps(payload)}])
-    raw = response.choices[0].message.content or ""
+    response = await client.responses.create(
+        model=model,
+        max_output_tokens=900,
+        input=[
+            {"role": "system", "content": [{"type": "input_text", "text": instruction}]},
+            {"role": "user", "content": [{"type": "input_text", "text": json.dumps(payload)}]},
+        ],
+    )
+    raw = response_output_text(response)
     try:
         obj = json.loads(raw.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip())
         def score(k, allowed):
@@ -198,7 +230,12 @@ async def run(args):
             OpenAIInstrumentor().instrument(tracer_provider=tracer_provider)
         except Exception as exc:
             print("Phoenix instrumentation unavailable:", exc)
-    url = os.getenv("MCP_SERVER_URL", "http://127.0.0.1:8000/mcp")
+    url = os.getenv("MCP_SERVER_URL", "http://127.0.0.1:8000/mcp").strip()
+    if not url.startswith(("http://", "https://")):
+        url = "http://" + url
+    if url.rstrip("/").endswith(":8000"):
+        url = url.rstrip("/") + "/mcp"
+    print(f"MCP URL: {url}")
     records = []
     for trial in range(1, args.repeats + 1):
         for row in rows:
@@ -253,7 +290,7 @@ def validate_environment():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", default=None, help="CSV file; defaults to bundled 40-case dataset")
-    parser.add_argument("--dataset-name", default="fda-eval-v01")
+    parser.add_argument("--dataset-name", default="fda-eval-v02")
     parser.add_argument("--system-prompt-version", default="v01")
     parser.add_argument("--repeats", type=int, default=3)
     parser.add_argument("--limit", type=int, default=0)
