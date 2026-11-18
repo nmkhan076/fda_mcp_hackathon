@@ -27,44 +27,20 @@ def _date(value):
 
 
 def _brand_matches(title, name):
-    """Match the requested brand without confusing ULTRAM with ULTRAM ER."""
-    def normalize(value):
-        return re.sub(r"\s+", " ", re.sub(r"[®™]", "", str(value or "")).strip().casefold())
+    """Match brand name at the beginning of the SPL title."""
+    normalize = lambda s: re.sub(
+        r"\s+", " ", s.strip().casefold()
+    )
 
-    title, name = normalize(title), normalize(name)
-    if not title or not name:
-        return False
-    if not re.match(rf"^{re.escape(name)}(?=$|[\s(\-])", title):
-        return False
-    # A suffix after the requested brand denotes a different formulation.
-    # Do not exclude ER when the user explicitly requested ULTRAM ER.
-    suffix = title[len(name):].lstrip(" -(")
-    if not re.search(r"\b(?:er|xr|extended[ -]release|extended release|long[ -]acting)\b", name):
-        if re.match(r"^(?:er|xr|extended[ -]release|long[ -]acting)\b", suffix):
-            return False
-    return True
+    title = normalize(title)
+    name = normalize(name)
 
-
-def _spl_header(xml_content):
-    """Read the document-level effectiveTime and versionNumber, not section dates."""
-    if b"<!DOCTYPE" in xml_content.upper() or b"<!ENTITY" in xml_content.upper():
-        raise ValueError("Unexpected XML document declaration")
-    root = ET.fromstring(xml_content)
-    effective = root.find(NS + "effectiveTime")
-    version = root.find(NS + "versionNumber")
-    title = root.find(NS + "title")
-    return {
-        "effective_time": (effective.get("value", "") if effective is not None else "")[:8],
-        "version": (version.get("value", "") if version is not None else ""),
-        "title": " ".join(title.itertext()).strip() if title is not None else "",
-    }
-
-
-def _version(value):
-    try:
-        return int(value or 0)
-    except (ValueError, TypeError):
-        return 0
+    return bool(
+        re.match(
+            rf"^{re.escape(name)}(?=$|[\s(\-])",
+            title,
+        )
+    )
 
 
 def _section_text(section):
@@ -136,86 +112,137 @@ def extract_spl_metadata(xml_content):
     return metadata
 
 
-async def find_dailymed_brand(drug_name: str, client: httpx.AsyncClient):
-    """Find newest exact-brand SPL using the actual XML effectiveTime."""
-    candidates = {}
-    page = 1
-    while True:
-        response = await client.get(
-            f"{BASE}/spls.json",
-            params={"drug_name": drug_name, "name_type": "b", "pagesize": 100, "page": page},
+async def find_dailymed_brand( drug_name: str, client: httpx.AsyncClient, ):
+        """Find a branded DailyMed SPL without generic substitution."""
+
+        candidates = []
+
+        for page in range(1, 4):
+            response = await client.get(
+                f"{BASE}/spls.json",
+                params={
+                    "drug_name": drug_name,
+                    "name_type": "b",
+                    "pagesize": 100,
+                    "page": page,
+                },
+            )
+
+            print(
+                f"DailyMed search: {drug_name}, "
+                f"page={page}, status={response.status_code}"
+            )
+
+            if response.status_code == 404:
+                break
+
+            response.raise_for_status()
+            payload = response.json()
+            print("Response keys:", list(payload.keys()))
+            print("Metadata:", payload.get("metadata"))
+            print("Raw response:", str(payload)[:3000])
+            # Support DailyMed's column-based JSON format.
+            columns = payload.get("COLUMNS", payload.get("columns", []))
+            rows = payload.get("DATA", payload.get("data", []))
+
+            if isinstance(rows, dict):
+                rows = rows.get("spl", rows.get("spls", []))
+
+            if columns and rows and isinstance(rows[0], list):
+                items = [dict(zip(columns, row)) for row in rows]
+            elif isinstance(rows, list):
+                items = rows
+            else:
+                items = []
+
+            print("Number of candidates:", len(items))
+            print("First candidates:", items[:3])
+
+            for item in items:
+                normalized_item = {
+                    str(k).lower(): v
+                    for k, v in item.items()
+                }
+
+                title = normalized_item.get("title", "")
+
+                print("DailyMed candidate:", title)
+
+                if _brand_matches(title, drug_name):
+                    candidates.append(normalized_item)
+
+            metadata = payload.get(
+                "METADATA",
+                payload.get("metadata", {})
+            )
+
+            total_pages = int(
+                metadata.get(
+                    "total_pages",
+                    metadata.get("TOTAL_PAGES", 1)
+                )
+            )
+
+            if page >= total_pages:
+                break
+
+        if not candidates:
+            print(
+                f"No current DailyMed branded label for {drug_name}. "
+                "Historical SPL lookup required."
+            )
+            return None
+
+        candidates.sort(
+            key=lambda r: (
+                _date(r.get("published_date")),
+                int(r.get("spl_version") or 0),
+            ),
+            reverse=True,
         )
-        if response.status_code == 404:
-            break
-        response.raise_for_status()
-        payload = response.json()
-        columns = payload.get("COLUMNS", payload.get("columns", []))
-        rows = payload.get("DATA", payload.get("data", []))
-        if isinstance(rows, dict):
-            rows = rows.get("spl", rows.get("spls", []))
-        if columns and rows and isinstance(rows[0], list):
-            items = [dict(zip(columns, row)) for row in rows]
-        else:
-            items = rows if isinstance(rows, list) else []
-        for item in items:
-            if not isinstance(item, dict):
-                continue
-            record = {str(k).lower(): v for k, v in item.items()}
-            set_id = record.get("setid") or record.get("set_id")
-            if set_id and _brand_matches(record.get("title", ""), drug_name):
-                candidates[str(set_id)] = record
-        meta = payload.get("METADATA", payload.get("metadata", {})) or {}
-        total_pages = _version(meta.get("total_pages", meta.get("TOTAL_PAGES", 1))) or 1
-        if page >= total_pages:
-            break
-        page += 1
 
+        chosen = candidates[0]
 
-    if not candidates:
-        return None
+        set_id = chosen.get("setid")
 
-    # Compare XML metadata for every candidate. Search-list published_date
-    # is not necessarily the label's effectiveTime.
-    ranked = []
-    for set_id, record in candidates.items():
-        try:
-            xml_response = await client.get(f"{BASE}/spls/{set_id}.xml", timeout=45)
-            if xml_response.status_code == 404:
-                print(f"DailyMed SPL XML not found: {set_id}")
-                continue
-            xml_response.raise_for_status()
-            xml_content = xml_response.content
-            header = _spl_header(xml_content)
-            # The SPL document title need not equal the marketed brand name.
-            # Candidate brand matching was already performed on the search results.
-            effective = header["effective_time"] or _date(record.get("published_date"))
-            version = _version(header["version"] or record.get("spl_version"))
-            ranked.append((effective, version, set_id, record, xml_content))
-        except (httpx.HTTPError, ET.ParseError, ValueError) as exc:
-            print(f"Skipping DailyMed SPL {set_id}: {exc}")
+        if not set_id:
+            raise ValueError(
+                "DailyMed returned a record without setid"
+            )
 
-    if not ranked:
-        return None
-    ranked.sort(key=lambda item: (item[0], item[1]), reverse=True)
+        xml_response = await client.get(
+            f"{BASE}/spls/{set_id}.xml",
+            timeout=45,
+        )
 
-    for effective, version, set_id, record, xml_content in ranked:
-        sections = parse_spl(xml_content)
+        xml_response.raise_for_status()
+
+        sections = parse_spl(xml_response.content)
+        metadata = extract_spl_metadata(xml_response.content)
         if not sections:
-            continue
-        metadata = extract_spl_metadata(xml_content)
+            raise ValueError(
+                "DailyMed SPL found but no labeling "
+                "sections were extracted"
+            )
+
         return {
             "id": None,
             "set_id": set_id,
-            "version": version,
-            "effective_time": effective,
-            "published_date": record.get("published_date"),
+            "version": chosen.get("spl_version"),
+            "effective_time": _date(
+                chosen.get("published_date")
+            ),
+            "published_date": chosen.get("published_date"),
             "openfda": {
                 "brand_name": [drug_name],
                 "generic_name": metadata["generic_name"],
                 "manufacturer_name": metadata["manufacturer_name"],
             },
             "source_provider": "DailyMed",
-            "source": f"https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid={set_id}",
+            "source": (
+                "https://dailymed.nlm.nih.gov/dailymed/"
+                f"drugInfo.cfm?setid={set_id}"
+            ),
             **sections,
         }
-    return None
+
