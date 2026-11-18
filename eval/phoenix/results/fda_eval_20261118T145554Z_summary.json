@@ -1,23 +1,23 @@
 {
-  "dataset": "fda-eval-v02",
+  "dataset": "fda-eval-v01",
   "prompt_version": "v01",
   "model": "models.ai.gpt-5-6-terra",
   "judge_model": "models.ai.gpt-5-6-terra",
   "repeats": 1,
-  "results_file": "E:\\AAFDA\\Hackathon_2026\\fda_mcp_hackathon-main\\fda_mcp_hackathon-updated\\eval\\phoenix\\results\\fda_eval_20261117T233914Z.csv",
+  "results_file": "C:\\Users\\Naima.Khan\\ANaima\\Hackathon\\fda_mcp_hackathon-updated\\eval\\phoenix\\results\\fda_eval_20261118T145554Z.csv",
   "modes": {
     "baseline": {
       "total": 2,
       "execution_errors": 0,
       "judge_unscored": 0,
       "scored": 2,
-      "correctness": 0.5,
+      "correctness": 0.25,
       "evidence_grounding": 0.25,
       "scope_adherence": 1.0,
-      "uncertainty_handling": 1.0,
+      "uncertainty_handling": 0.5,
       "historical_change_supported": null,
       "approval_date_boundary_correct": null,
-      "median_latency_s": 12.444,
+      "median_latency_s": 11.338,
       "expected_tool_invoked_rate": null,
       "expected_tool_succeeded_rate": null,
       "tool_success_rate": null,
@@ -25,19 +25,19 @@
     },
     "mcp": {
       "total": 2,
-      "execution_errors": 2,
+      "execution_errors": 0,
       "judge_unscored": 0,
-      "scored": 0,
-      "correctness": null,
-      "evidence_grounding": null,
-      "scope_adherence": null,
-      "uncertainty_handling": null,
+      "scored": 2,
+      "correctness": 0.5,
+      "evidence_grounding": 0.5,
+      "scope_adherence": 1.0,
+      "uncertainty_handling": 0.5,
       "historical_change_supported": null,
       "approval_date_boundary_correct": null,
-      "median_latency_s": null,
-      "expected_tool_invoked_rate": null,
-      "expected_tool_succeeded_rate": null,
-      "tool_success_rate": null,
+      "median_latency_s": 29.617,
+      "expected_tool_invoked_rate": 1.0,
+      "expected_tool_succeeded_rate": 1.0,
+      "tool_success_rate": 1.0,
       "source_match_rate": null
     }
   },
@@ -45,15 +45,15 @@
     "label": {
       "baseline": {
         "count": 2,
-        "correctness": 0.5,
+        "correctness": 0.25,
         "evidence_grounding": 0.25
       },
       "mcp": {
         "count": 2,
-        "correctness": null,
-        "evidence_grounding": null
+        "correctness": 0.5,
+        "evidence_grounding": 0.5
       }
     }
   },
-  "correctness_lift_percentage_points": null
+  "correctness_lift_percentage_points": 25.0
 }

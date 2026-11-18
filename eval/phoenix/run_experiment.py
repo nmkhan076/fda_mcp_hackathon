@@ -45,7 +45,7 @@ def get_rows(dataset_path=None):
 
 def to_openai_tool(tool):
     """Responses API uses a flat function-tool schema."""
-    schema = getattr(tool, "inputSchema", None) or getattr(tool, "input_schema", None) or {"type": "object", "properties": {}}
+    schema = getattr(tool, "input_schema", None) or {"type": "object", "properties": {}}
     if hasattr(schema, "model_dump"):
         schema = schema.model_dump(exclude_none=True)
     return {"type": "function", "name": tool.name, "description": tool.description or "", "parameters": schema}
@@ -290,7 +290,7 @@ def validate_environment():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", default=None, help="CSV file; defaults to bundled 40-case dataset")
-    parser.add_argument("--dataset-name", default="fda-eval-v02")
+    parser.add_argument("--dataset-name", default="fda-eval-v01")
     parser.add_argument("--system-prompt-version", default="v01")
     parser.add_argument("--repeats", type=int, default=3)
     parser.add_argument("--limit", type=int, default=0)
