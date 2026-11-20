@@ -10,6 +10,7 @@ from pathlib import Path
 import re
 import statistics
 import time
+import sys
 from dotenv import load_dotenv
 from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
@@ -35,6 +36,7 @@ def model_client():
     ), endpoint
 
 
+
 def get_rows(dataset_path=None):
     path = (
         Path(dataset_path)
@@ -43,6 +45,7 @@ def get_rows(dataset_path=None):
     )
     with path.open(newline="", encoding="utf-8-sig") as f:
         rows = list(csv.DictReader(f))
+
     required = {
         "case_id",
         "category",
@@ -53,6 +56,7 @@ def get_rows(dataset_path=None):
         "scope",
         "evidence_file",
     }
+
     if not rows or not required.issubset(rows[0]):
         raise ValueError(f"Dataset must contain columns: {', '.join(sorted(required))}")
     for r in rows:
@@ -64,7 +68,7 @@ def get_rows(dataset_path=None):
     return rows
 
 
-def load_case_evidence(row):
+def load_case_evidence(row, retrieval_top_k=5):
     """Load one or more local evidence files, restricted to ROOT/evidence/."""
     raw = (row.get("evidence_file") or "").strip()
     if not raw or raw.lower() in {
@@ -111,7 +115,7 @@ def load_case_evidence(row):
                 f"Case {row['case_id']}: empty or unreadable evidence: {candidate}"
             )
         # Limit each source, not just the combined string; preserve source provenance.
-        excerpts.append(f"SOURCE: {relative}\n{data[:12000]}")
+        excerpts.append(f"SOURCE: {relative}\n{data if candidate.suffix.lower() == '.pdf' else data[:12000]}")
     return "\n\n".join(excerpts) if excerpts else None
 
 
@@ -192,6 +196,7 @@ async def answer(client, model, prompt, query, mcp=None, max_calls=5, evidence=N
                 "latency_s": round(time.perf_counter() - started, 3),
                 "limit_hit": False,
             }
+
         if not mcp:
             raise RuntimeError("Model requested tools in baseline")
         if iteration >= max_calls:
@@ -222,6 +227,7 @@ async def answer(client, model, prompt, query, mcp=None, max_calls=5, evidence=N
                             span.set_status(
                                 Status(StatusCode.ERROR, "MCP returned an error")
                             )
+
                     except Exception as exc:
                         span.record_exception(exc)
                         span.set_status(Status(StatusCode.ERROR, str(exc)))
@@ -265,6 +271,7 @@ async def answer(client, model, prompt, query, mcp=None, max_calls=5, evidence=N
         "latency_s": round(time.perf_counter() - started, 3),
         "limit_hit": True,
     }
+
 
 
 def category_rules(category):
@@ -353,6 +360,7 @@ rationale that identifies specific missing or incorrect claims when scoring 0.""
         "baseline_supplied_evidence": supplied_evidence[:12000]
         if supplied_evidence
         else None,
+
         "tool_error_count": sum(bool(c["error"]) for c in calls),
     }
     response = await client.responses.create(
@@ -371,6 +379,7 @@ rationale that identifies specific missing or incorrect claims when scoring 0.""
     )
     raw = response_output_text(response)
     try:
+
         obj = json.loads(
             raw.strip()
             .removeprefix("```json")
@@ -378,6 +387,7 @@ rationale that identifies specific missing or incorrect claims when scoring 0.""
             .removesuffix("```")
             .strip()
         )
+
 
         def score(k, allowed):
             v = obj.get(k)
@@ -414,9 +424,11 @@ rationale that identifies specific missing or incorrect claims when scoring 0.""
         }
 
 
+
 def tool_metrics(row, calls, mode):
     """Accept semicolon-separated alternative tools and explicit no-tool cases."""
     if mode != "mcp":
+
         return {
             "expected_tool_invoked": None,
             "expected_tool_succeeded": None,
@@ -433,6 +445,7 @@ def tool_metrics(row, calls, mode):
             re.I,
         )
     )
+
     candidates = [x.strip() for x in expected.split(";") if x.strip()]
     expected_names = {
         re.split(r"\s*\(", item, maxsplit=1)[0].strip().strip("` ")
@@ -451,9 +464,11 @@ def tool_metrics(row, calls, mode):
 
     success_rate = (sum(not c["error"] for c in calls) / len(calls)) if calls else None
     locator = row.get("source_locator") or ""
+
     evidence = "\n".join(
         c["evidence_excerpt"] for c in matching if not c["error"]
     ).lower()
+
     ids = re.findall(r"set_id\s*=\s*([0-9a-f-]{36})", locator, re.I)
     if ids and evidence:
         source_match = int(any(identifier.lower() in evidence for identifier in ids))
@@ -461,6 +476,7 @@ def tool_metrics(row, calls, mode):
         source_match = 0
     else:
         source_match = None
+
     return {
         "expected_tool_invoked": invoked,
         "expected_tool_succeeded": succeeded,
@@ -469,12 +485,14 @@ def tool_metrics(row, calls, mode):
     }
 
 
+
 def mean(rows, key, divisor=1):
     vals = [r[key] / divisor for r in rows if type(r.get(key)) in (int, float)]
     return round(statistics.mean(vals), 4) if vals else None
 
 
 def summarize(records, args, model, judge_model, dest):
+
     summary = {
         "dataset": args.dataset_name,
         "prompt_version": args.system_prompt_version,
@@ -485,10 +503,12 @@ def summarize(records, args, model, judge_model, dest):
         "modes": {},
         "categories": {},
     }
+
     for mode in ("baseline", "baseline_evidence", "mcp"):
         subset = [r for r in records if r["mode"] == mode]
         summary["modes"][mode] = {
             "total": len(subset),
+
             "execution_errors": sum(
                 bool(r["error"]) and r["error"] != "SKIPPED_NO_EVIDENCE" for r in subset
             ),
@@ -519,12 +539,14 @@ def summarize(records, args, model, judge_model, dest):
             )
             if any(type(r["latency_s"]) in (int, float) for r in subset)
             else None,
+
             "expected_tool_invoked_rate": mean(subset, "expected_tool_invoked"),
             "expected_tool_succeeded_rate": mean(subset, "expected_tool_succeeded"),
             "tool_success_rate": mean(subset, "tool_success_rate"),
             "source_match_rate": mean(subset, "source_match"),
         }
     for category in sorted(set(r["category"] for r in records)):
+
         summary["categories"][category] = {
             mode: {
                 "count": len(sub),
@@ -540,6 +562,7 @@ def summarize(records, args, model, judge_model, dest):
     summary["correctness_lift_percentage_points"] = (
         round(100 * (m - b), 2) if b is not None and m is not None else None
     )
+
     return summary
 
 
@@ -556,6 +579,7 @@ async def run(args):
             endpoint=os.getenv(
                 "PHOENIX_COLLECTOR_ENDPOINT", "http://localhost:6006/v1/traces"
             ),
+
         )
         OpenAIInstrumentor().instrument(tracer_provider=provider)
     tracer = trace.get_tracer("fda-mcp-evaluation")
@@ -566,8 +590,14 @@ async def run(args):
         ROOT / "prompts" / f"system_prompt_{args.system_prompt_version}.txt"
     ).read_text(encoding="utf-8")
     rows = get_rows(args.dataset)
+    if args.rag_only:
+        rows = [r for r in rows if r["category"].lower() == "rag"]
+    if args.case_ids:
+        selected = {item.strip() for item in args.case_ids.split(",")}
+        rows = [r for r in rows if str(r["case_id"]).strip() in selected]
     if args.limit:
         rows = rows[: args.limit]
+
 
     url = os.getenv("MCP_SERVER_URL", "http://127.0.0.1:8000/mcp").strip()
     if not url.startswith(("http://", "https://")):
@@ -607,6 +637,7 @@ async def run(args):
                     "latency_s": None,
                     "error": "",
                 }
+
                 with tracer.start_as_current_span("fda.evaluate_case") as span:
                     span.set_attribute("eval.case_id", str(row["case_id"]))
                     span.set_attribute("eval.category", row["category"])
@@ -626,8 +657,9 @@ async def run(args):
                                     mcp=mcp,
                                     max_calls=args.max_calls,
                                 )
+
                         elif mode == "baseline_evidence":
-                            evidence = load_case_evidence(row)
+                            evidence = load_case_evidence(row, retrieval_top_k=args.rag_top_k)
                             if evidence is None:
                                 record["error"] = "SKIPPED_NO_EVIDENCE"
                                 records.append(record)
@@ -677,6 +709,7 @@ async def run(args):
                             record.update(
                                 {k: v for k, v in verdict.items() if k != "rationale"}
                             )
+
                             record["judge_rationale"] = verdict["rationale"]
                     except Exception as exc:
                         span.record_exception(exc)
@@ -698,6 +731,7 @@ async def run(args):
                         f"trial={trial} case={row['case_id']} mode={mode} correctness={record['correctness']} error={record['error']}",
                         flush=True,
                     )
+
     output_dir = ROOT / "results"
     output_dir.mkdir(exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -727,6 +761,7 @@ def validate_environment():
         raise RuntimeError(f"Missing environment variables: {', '.join(missing)}")
 
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -738,8 +773,11 @@ if __name__ == "__main__":
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--max-calls", type=int, default=5)
     parser.add_argument("--phoenix", action="store_true")
+    parser.add_argument("--rag-only", action="store_true", help="Run only the ten PDF/RAG questions")
+    parser.add_argument("--case-ids", default="", help="Comma-separated case IDs, e.g. 7,23,24")
+    parser.add_argument("--rag-top-k", type=int, default=5, help="PDF passages supplied to evidence baseline")
     args = parser.parse_args()
     validate_environment()
-    if args.repeats < 1 or args.max_calls < 1:
-        parser.error("--repeats and --max-calls must be >= 1")
+    if args.repeats < 1 or args.max_calls < 1 or not 1 <= args.rag_top_k <= 10:
+        parser.error("--repeats and --max-calls must be >= 1 and --rag-top-k must be 1..10")
     asyncio.run(run(args))
